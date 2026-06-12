@@ -1,0 +1,12 @@
+.git
+.github
+.env
+.env.*
+!.env.example
+node_modules
+dist
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+npm-debug.log*
+bun-error.log*

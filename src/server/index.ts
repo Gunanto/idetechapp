@@ -21,9 +21,12 @@ app.use(
 
 app.route("/api", apiRoutes);
 
-app.use("/assets/*", serveStatic({ root: "./dist" }));
-app.get("/landing-idetech-bg.png", serveStatic({ path: "./dist/landing-idetech-bg.png" }));
+app.use("*", serveStatic({ root: "./dist" }));
 app.get("*", async (c) => {
+  if (c.req.path.startsWith("/api/")) {
+    return c.json({ message: "Endpoint API tidak ditemukan." }, 404);
+  }
+
   const file = Bun.file("./dist/index.html");
   if (await file.exists()) return c.html(await file.text());
   return c.text("Jalankan `bun run dev` untuk mode development atau `bun run build && bun run start` untuk produksi.");

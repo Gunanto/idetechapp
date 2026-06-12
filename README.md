@@ -65,6 +65,43 @@ Jika ingin mengganti port:
 PORT=3000 bun run start
 ```
 
+## Deployment Docker dan GHCR
+
+Image produksi dipublikasikan ke:
+
+```txt
+ghcr.io/ferilee/idetechapp:latest
+```
+
+Workflow publikasi dijalankan manual dari GitHub melalui menu **Actions**, pilih
+**Publish GHCR image**, lalu klik **Run workflow**. Workflow menggunakan
+`GITHUB_TOKEN` bawaan GitHub Actions dan tidak memerlukan personal access token.
+
+Siapkan network Docker satu kali pada server:
+
+```bash
+docker network create ferileenet
+```
+
+Salin konfigurasi environment berdasarkan `.env.example`, lalu isi kredensial
+Google OAuth produksi. `GOOGLE_REDIRECT_URI` harus sama persis dengan Authorized
+redirect URI yang didaftarkan di Google Cloud Console.
+
+Jalankan deployment menggunakan Compose produksi:
+
+```bash
+docker login ghcr.io
+docker compose -f docker-compose.production.yml pull
+docker compose -f docker-compose.production.yml up -d
+```
+
+Login GHCR hanya diperlukan jika package masih berstatus private. Alternatifnya,
+ubah visibility package `idetechapp` menjadi public melalui pengaturan package
+di GitHub agar server dapat melakukan pull tanpa kredensial registry.
+
+Database SQLite disimpan pada named volume `sqlite_data` di path
+`/app/data/idetech.db`, sehingga data tetap tersedia ketika container diganti.
+
 ## Login
 
 ### Login Demo
