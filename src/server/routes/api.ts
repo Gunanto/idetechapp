@@ -1,6 +1,7 @@
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { desc, eq } from "drizzle-orm";
 import { Hono } from "hono";
+import { nanoid } from "nanoid";
 import { db } from "../db/client";
 import {
   classes,
