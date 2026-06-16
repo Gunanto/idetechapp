@@ -95,13 +95,25 @@ app.get("/schools/search", async (c) => {
     const variants = buildSchoolQueryVariants(query);
     const payloads = await Promise.all(
       variants.map(async (variant) => {
-        const response = await fetch(`https://api-sekolah-indonesia.vercel.app/sekolah/s?sekolah=${encodeURIComponent(variant)}`);
-        return response.ok ? ((await response.json()) as unknown) : null;
+        try {
+          const response = await fetch(`https://api-sekolah-indonesia.vercel.app/sekolah/s?sekolah=${encodeURIComponent(variant)}`, {
+            headers: {
+              "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+              "Accept": "application/json"
+            }
+          });
+          if (!response.ok) return null;
+          return (await response.json()) as unknown;
+        } catch (err) {
+          console.error("Error fetching school variant:", variant, err);
+          return null;
+        }
       })
     );
 
     return c.json({ schools: normalizeSchoolPayload(payloads, query) });
-  } catch {
+  } catch (error) {
+    console.error("School search general error:", error);
     return c.json({ schools: [] });
   }
 });
