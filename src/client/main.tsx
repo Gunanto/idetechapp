@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import ReactDOM from "react-dom/client";
 import ReactMarkdown from "react-markdown";
+import rehypeRaw from "rehype-raw";
 import {
   BadgeCheck,
   BookOpen,
@@ -38,7 +39,16 @@ import {
   Image as ImageIcon,
   CheckCircle2,
   ChevronLeft,
-  Info
+  Info,
+  Heading,
+  Bold,
+  Italic,
+  Underline,
+  Link,
+  AlignCenter,
+  List,
+  ListOrdered,
+  AlignJustify
 } from "lucide-react";
 import { Button, Card, SecondaryButton, Select, StatusPill } from "./components/ui";
 import "./styles.css";
@@ -1596,8 +1606,8 @@ function StudentContentModal({
             {selectedTask.content && (
               <div className="mt-4 mb-6 bg-slate-50 border border-slate-200 rounded-xl p-4 overflow-hidden shadow-inner">
                 {selectedTask.type === 'lesson' && (
-                  <div className="prose prose-sm prose-blue max-w-none text-slate-700">
-                    <ReactMarkdown>{selectedTask.content}</ReactMarkdown>
+                  <div className="prose prose-sm prose-blue max-w-none text-slate-700 overflow-y-auto max-h-[300px] pr-2">
+                    <ReactMarkdown rehypePlugins={[rehypeRaw]}>{selectedTask.content}</ReactMarkdown>
                   </div>
                 )}
                 {selectedTask.type === 'video' && (
@@ -1634,7 +1644,7 @@ function StudentContentModal({
               <i style={{ width: `${selectedTask.progress}%` }} />
             </div>
             <button type="button" disabled={busy || selectedTask.progress >= 100} onClick={() => onCompleteMaterial(selectedTask.id)}>
-              {selectedTask.progress >= 100 ? "Tugas Selesai" : "Buka dan Kerjakan"}
+              {selectedTask.progress >= 100 ? "Tugas Selesai" : selectedTask.type === "lesson" ? "Saya Sudah Membaca Materi Ini" : "Buka dan Kerjakan"}
             </button>
           </article>
         </div>
@@ -2430,6 +2440,27 @@ function TeacherStudioManager({
 }) {
   const [activeTab, setActiveTab] = React.useState<"material" | "quest">("material");
   const [showMarkdownGuide, setShowMarkdownGuide] = React.useState(false);
+  const textareaRef = React.useRef<HTMLTextAreaElement>(null);
+
+  const insertMarkdown = (prefix: string, suffix: string = "") => {
+    if (!textareaRef.current) return;
+    const start = textareaRef.current.selectionStart;
+    const end = textareaRef.current.selectionEnd;
+    const text = materialForm.content || "";
+    const before = text.substring(0, start);
+    const selected = text.substring(start, end);
+    const after = text.substring(end);
+    
+    const newText = before + prefix + selected + suffix + after;
+    onMaterialFormChange((current) => ({ ...current, content: newText }));
+    
+    setTimeout(() => {
+      if (textareaRef.current) {
+        textareaRef.current.focus();
+        textareaRef.current.setSelectionRange(start + prefix.length, end + prefix.length);
+      }
+    }, 0);
+  };
   const selectedClassMaterials = materials.filter((material) => material.classId === questForm.classId);
 
   let quizData: { soal: string; jawaban: string[] }[] = [];
@@ -2518,7 +2549,7 @@ function TeacherStudioManager({
         
         {materialForm.type === 'lesson' && (
           <label>
-            <span className="flex items-center gap-2">
+            <span className="flex items-center gap-2 mb-2">
               Isi Lesson (Teks/Markdown)
               <button
                 type="button"
@@ -2530,7 +2561,22 @@ function TeacherStudioManager({
                 <Info className="h-4 w-4" />
               </button>
             </span>
+            <div className="flex flex-wrap gap-1 mb-2 bg-slate-100 p-1.5 rounded-md border border-slate-200">
+              <button type="button" onClick={() => insertMarkdown("### ", "")} className="p-1.5 text-slate-600 hover:bg-white hover:text-blue-600 rounded transition-colors" title="Heading"><Heading className="w-4 h-4" /></button>
+              <button type="button" onClick={() => insertMarkdown("**", "**")} className="p-1.5 text-slate-600 hover:bg-white hover:text-blue-600 rounded transition-colors" title="Tebal"><Bold className="w-4 h-4" /></button>
+              <button type="button" onClick={() => insertMarkdown("*", "*")} className="p-1.5 text-slate-600 hover:bg-white hover:text-blue-600 rounded transition-colors" title="Miring"><Italic className="w-4 h-4" /></button>
+              <button type="button" onClick={() => insertMarkdown("<u>", "</u>")} className="p-1.5 text-slate-600 hover:bg-white hover:text-blue-600 rounded transition-colors" title="Garis Bawah"><Underline className="w-4 h-4" /></button>
+              <div className="w-px h-6 bg-slate-300 mx-1 self-center" />
+              <button type="button" onClick={() => insertMarkdown("[", "](https://)")} className="p-1.5 text-slate-600 hover:bg-white hover:text-blue-600 rounded transition-colors" title="Hyperlink"><Link className="w-4 h-4" /></button>
+              <button type="button" onClick={() => insertMarkdown("![Deskripsi](", ")")} className="p-1.5 text-slate-600 hover:bg-white hover:text-blue-600 rounded transition-colors" title="Gambar"><ImageIcon className="w-4 h-4" /></button>
+              <button type="button" onClick={() => insertMarkdown("<div align=\"center\">\n", "\n</div>")} className="p-1.5 text-slate-600 hover:bg-white hover:text-blue-600 rounded transition-colors" title="Rata Tengah"><AlignCenter className="w-4 h-4" /></button>
+              <button type="button" onClick={() => insertMarkdown("<div align=\"justify\">\n", "\n</div>")} className="p-1.5 text-slate-600 hover:bg-white hover:text-blue-600 rounded transition-colors" title="Rata Kanan Kiri"><AlignJustify className="w-4 h-4" /></button>
+              <div className="w-px h-6 bg-slate-300 mx-1 self-center" />
+              <button type="button" onClick={() => insertMarkdown("- ", "")} className="p-1.5 text-slate-600 hover:bg-white hover:text-blue-600 rounded transition-colors" title="Bullets"><List className="w-4 h-4" /></button>
+              <button type="button" onClick={() => insertMarkdown("1. ", "")} className="p-1.5 text-slate-600 hover:bg-white hover:text-blue-600 rounded transition-colors" title="Numbering"><ListOrdered className="w-4 h-4" /></button>
+            </div>
             <textarea
+              ref={textareaRef}
               rows={6}
               value={materialForm.content}
               placeholder="Ketik materi lesson Anda secara mendetail di sini..."
