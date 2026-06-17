@@ -35,7 +35,8 @@ import {
   Plus,
   Image as ImageIcon,
   CheckCircle2,
-  ChevronLeft
+  ChevronLeft,
+  Info
 } from "lucide-react";
 import { Button, Card, SecondaryButton, Select, StatusPill } from "./components/ui";
 import "./styles.css";
@@ -2424,7 +2425,12 @@ function TeacherStudioManager({
         
         {materialForm.type === 'lesson' && (
           <label>
-            <span>Isi Lesson (Teks/Markdown)</span>
+            <span className="flex items-center gap-2">
+              Isi Lesson (Teks/Markdown)
+              <div className="tooltip tooltip-right" data-tip="Gunakan Markdown: **tebal**, *miring*, - list, [link](url)">
+                <Info className="h-4 w-4 text-blue-500/70 hover:text-blue-500 cursor-help transition-colors" />
+              </div>
+            </span>
             <textarea
               rows={6}
               value={materialForm.content}
