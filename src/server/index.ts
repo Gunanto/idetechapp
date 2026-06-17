@@ -19,6 +19,13 @@ app.use(
   })
 );
 
+app.use("/api/*", async (c, next) => {
+  await next();
+  c.header("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+  c.header("Pragma", "no-cache");
+  c.header("Expires", "0");
+});
+
 app.route("/api", apiRoutes);
 
 app.use("*", serveStatic({ root: "./dist" }));

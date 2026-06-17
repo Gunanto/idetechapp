@@ -37,6 +37,7 @@ import {
   Frown,
   Meh,
   Plus,
+  Upload,
   Image as ImageIcon,
   CheckCircle2,
   ChevronLeft,
@@ -2543,8 +2544,23 @@ function TeacherStudioManager({
     onMaterialFormChange((current) => ({ ...current, content: JSON.stringify(newData) }));
   };
 
+  const [showBankModal, setShowBankModal] = React.useState(false);
+  const [bankTab, setBankTab] = React.useState<"material" | "quest">("material");
+
   return (
     <section className="teacher-studio-manager">
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-xl font-bold text-slate-800">Studio Pembuatan</h2>
+        <button 
+          type="button" 
+          onClick={() => setShowBankModal(true)}
+          className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold rounded-lg shadow-sm hover:shadow text-sm transition-all hover:scale-105"
+        >
+          <BookOpen className="h-4 w-4" />
+          Bank IdeTech
+        </button>
+      </div>
+
       <div className="flex bg-slate-100 rounded-lg p-1 mb-4 gap-1">
         <button
           type="button"
@@ -2813,32 +2829,42 @@ function TeacherStudioManager({
         <div>
           <h3>Materi Terbit</h3>
           {materials.slice(0, 4).map((item) => (
-            <article key={item.id} className="flex justify-between items-center group relative">
+            <article key={item.id} className="flex justify-between items-center group relative p-3 bg-white rounded-lg border border-slate-100 shadow-sm hover:border-blue-200 transition-colors">
               <div className="flex flex-col">
                 <strong>{item.title}</strong>
-                <span>{item.type} - {classes.find((kelas) => kelas.id === item.classId)?.name ?? "Kelas"}</span>
+                <span className="text-xs text-slate-500">{item.type} - {classes.find((kelas) => kelas.id === item.classId)?.name ?? "Kelas"}</span>
               </div>
-              {onEditMaterial && (
-                <button type="button" onClick={() => onEditMaterial(item)} className="p-1.5 text-slate-400 hover:text-blue-500 rounded-md hover:bg-blue-50 transition-colors bg-white shadow-sm border border-slate-100 lg:opacity-0 lg:group-hover:opacity-100" title="Edit Materi">
-                  <Pencil className="h-4 w-4" />
+              <div className="flex items-center gap-1 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
+                <button type="button" onClick={() => alert("Permintaan dikirim! Materi ini akan ditinjau oleh tim IdeTech sebelum masuk ke Bank Materi.")} className="p-1.5 text-slate-400 hover:text-green-600 hover:bg-green-50 rounded-md transition-colors" title="Kirim ke Bank Materi">
+                  <Upload className="h-4 w-4" />
                 </button>
-              )}
+                {onEditMaterial && (
+                  <button type="button" onClick={() => onEditMaterial(item)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors" title="Edit Materi">
+                    <Pencil className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
             </article>
           ))}
         </div>
         <div>
           <h3>IdeQuest Terbit</h3>
           {quests.slice(0, 4).map((item) => (
-            <article key={item.id} className="flex justify-between items-center group relative">
+            <article key={item.id} className="flex justify-between items-center group relative p-3 bg-white rounded-lg border border-slate-100 shadow-sm hover:border-blue-200 transition-colors">
               <div className="flex flex-col">
                 <strong>{item.title}</strong>
-                <span>{item.points} poin - {item.dueDate}</span>
+                <span className="text-xs text-slate-500">{item.points} poin - {item.dueDate}</span>
               </div>
-              {onEditQuest && (
-                <button type="button" onClick={() => onEditQuest(item)} className="p-1.5 text-slate-400 hover:text-blue-500 rounded-md hover:bg-blue-50 transition-colors bg-white shadow-sm border border-slate-100 lg:opacity-0 lg:group-hover:opacity-100" title="Edit IdeQuest">
-                  <Pencil className="h-4 w-4" />
+              <div className="flex items-center gap-1 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
+                <button type="button" onClick={() => alert("Permintaan dikirim! IdeQuest ini akan ditinjau oleh tim IdeTech sebelum masuk ke Bank IdeQuest.")} className="p-1.5 text-slate-400 hover:text-green-600 hover:bg-green-50 rounded-md transition-colors" title="Kirim ke Bank IdeQuest">
+                  <Upload className="h-4 w-4" />
                 </button>
-              )}
+                {onEditQuest && (
+                  <button type="button" onClick={() => onEditQuest(item)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors" title="Edit IdeQuest">
+                    <Pencil className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
             </article>
           ))}
         </div>
@@ -2883,6 +2909,63 @@ function TeacherStudioManager({
               <div className="pt-4 flex justify-end">
                 <Button type="button" onClick={() => setShowMarkdownGuide(false)}>Tutup Panduan</Button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {showBankModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+          <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+              <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                <BookOpen className="h-5 w-5 text-blue-500" />
+                Bank IdeTech
+              </h3>
+              <button type="button" onClick={() => setShowBankModal(false)} className="text-slate-400 hover:text-slate-600 transition-colors p-1 rounded-md hover:bg-slate-100">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            
+            <div className="flex border-b border-slate-100 bg-white">
+              <button
+                type="button"
+                className={`flex-1 py-3 text-sm font-bold border-b-2 transition-colors ${bankTab === 'material' ? 'border-blue-500 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50'}`}
+                onClick={() => setBankTab('material')}
+              >
+                Bank Materi
+              </button>
+              <button
+                type="button"
+                className={`flex-1 py-3 text-sm font-bold border-b-2 transition-colors ${bankTab === 'quest' ? 'border-blue-500 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50'}`}
+                onClick={() => setBankTab('quest')}
+              >
+                Bank IdeQuest
+              </button>
+            </div>
+
+            <div className="p-6 overflow-y-auto flex-1 bg-slate-50">
+              <div className="flex flex-col items-center justify-center h-full py-10 text-center opacity-70">
+                <Puzzle className="h-16 w-16 text-blue-300 mb-4 drop-shadow-sm" />
+                <h4 className="text-xl font-bold text-slate-700 mb-2">Koleksi Sedang Disiapkan</h4>
+                <p className="text-slate-500 max-w-md mx-auto">
+                  {bankTab === 'material' 
+                    ? "Tim IdeTech sedang mengkurasi materi-materi terbaik dari berbagai guru. Anda dapat berpartisipasi dengan mengirimkan materi buatan Anda ke Bank Materi!"
+                    : "Tim IdeTech sedang mengkurasi IdeQuest paling menarik dari berbagai guru. Anda dapat berpartisipasi dengan mengirimkan IdeQuest Anda ke Bank!"}
+                </p>
+                <div className="mt-8 bg-blue-50 border border-blue-100 rounded-lg p-4 max-w-sm w-full mx-auto text-left">
+                  <h5 className="font-bold text-blue-800 text-sm mb-1 flex items-center gap-1.5"><Star className="w-4 h-4 text-blue-500" /> Cara Kontribusi</h5>
+                  <p className="text-xs text-blue-600/80 leading-relaxed">
+                    Buka daftar Materi atau IdeQuest terbit Anda, lalu klik ikon <strong>Kirim ke Bank</strong> (<Upload className="inline w-3 h-3" />). Setelah lolos peninjauan, karya Anda akan tersedia untuk seluruh guru di Indonesia!
+                  </p>
+                </div>
+              </div>
+            </div>
+            
+            <div className="p-4 border-t border-slate-100 bg-white flex justify-end">
+              <button type="button" onClick={() => setShowBankModal(false)} className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg text-sm transition-colors">
+                Tutup Bank
+              </button>
             </div>
           </div>
         </div>
