@@ -5005,14 +5005,10 @@ function TeacherChatWidget({ isOpen, onClose }: { isOpen: boolean; onClose: () =
 
     try {
       const history = messages.slice(1).map((m) => ({ role: m.role === "bot" ? "assistant" : "user", content: m.text }));
-      const response = await fetch("/api/teacher/chat", {
+      const data = await api<any>("/api/teacher/chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: userMessage, history })
       });
-      const data = await response.json();
-      
-      if (!response.ok) throw new Error(data.message || "Gagal menghubungi AI");
       
       setMessages((prev) => [...prev, { role: "bot", text: data.reply || "Maaf, tidak ada respons." }]);
     } catch (err) {
