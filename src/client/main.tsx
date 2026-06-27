@@ -61,6 +61,7 @@ import {
   MessageCircle,
   Calendar,
   Timer,
+  Send,
 } from "lucide-react";
 import { Button, Card, SecondaryButton, Select, StatusPill } from "./components/ui";
 import "./styles.css";
