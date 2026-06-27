@@ -1504,8 +1504,8 @@ function StudentContentModal({
 
         {active === "quest" ? (
           <div className="student-task-card-grid">
-            {quests.length ? null : <p className="student-content-empty text-slate-100 col-span-3 text-center">Belum ada IdeQuest aktif.</p>}
-            {quests.map((quest) => {
+            {activeQuests.length ? null : <p className="student-content-empty text-slate-100 col-span-3 text-center">Belum ada IdeQuest aktif.</p>}
+            {activeQuests.map((quest) => {
               const relatedMaterial = materials.find((material) => material.id === quest.materialId);
               const materialDone = !quest.materialId || (relatedMaterial?.progress ?? 0) >= 100;
               const isDone = quest.progress >= 100;
@@ -4097,12 +4097,14 @@ function AdminControlCenter({
   access,
   busy,
   onUpdateUser,
+  onDeleteUser,
   onUpdateRolePermissions
 }: {
   users: AdminUser[];
   access: AdminAccess | null;
   busy: boolean;
   onUpdateUser: (id: string, payload: { status?: string; roles?: RoleName[] }) => void;
+  onDeleteUser?: (id: string) => void;
   onUpdateRolePermissions: (role: RoleName, permissions: string[]) => void;
 }) {
   const pendingUsers = users.filter((item) => item.status === "pending");
@@ -4118,7 +4120,7 @@ function AdminControlCenter({
           <span className="professional-card__pill">{users.length} user</span>
         </div>
 
-        <AdminUserVerificationGrid users={users} roles={access?.roles ?? []} busy={busy} onUpdateUser={onUpdateUser} />
+        <AdminUserVerificationGrid users={users} roles={access?.roles ?? []} busy={busy} onUpdateUser={onUpdateUser} onDeleteUser={onDeleteUser} />
       </Card>
 
       <div className="grid gap-6">
@@ -4138,6 +4140,7 @@ function AdminSubPage({
   busy,
   onBack,
   onUpdateUser,
+  onDeleteUser,
   onUpdateRolePermissions,
   onCreateClass,
   onUpdateClass,
@@ -4150,6 +4153,7 @@ function AdminSubPage({
   busy: boolean;
   onBack: () => void;
   onUpdateUser: (id: string, payload: { status?: string; roles?: RoleName[] }) => void;
+  onDeleteUser?: (id: string) => void;
   onUpdateRolePermissions: (role: RoleName, permissions: string[]) => void;
   onCreateClass: (payload: { teacherUserId?: string; name: string; subject: string; grade: string; students: number; status: TeacherClass["status"] }) => void;
   onUpdateClass: (id: string, payload: Partial<Pick<TeacherClass, "name" | "subject" | "grade" | "students" | "progress" | "status">> & { teacherUserId?: string }) => void;
@@ -4177,9 +4181,14 @@ function AdminSubPage({
       </div>
 
       {view === "users" ? (
-        <div className="mt-6">
-          <AdminUserVerificationGrid users={users} roles={access?.roles ?? []} busy={busy} onUpdateUser={onUpdateUser} />
-        </div>
+        <AdminControlCenter
+          users={users}
+          access={access}
+          busy={busy}
+          onUpdateUser={onUpdateUser}
+          onDeleteUser={onDeleteUser}
+          onUpdateRolePermissions={onUpdateRolePermissions}
+        />
       ) : null}
 
       {view === "classes" ? (
@@ -4197,12 +4206,14 @@ function AdminUserVerificationGrid({
   users,
   roles,
   busy,
-  onUpdateUser
+  onUpdateUser,
+  onDeleteUser
 }: {
   users: AdminUser[];
   roles: { name: RoleName; label: string }[];
   busy: boolean;
   onUpdateUser: (id: string, payload: { status?: string; roles?: RoleName[] }) => void;
+  onDeleteUser?: (id: string) => void;
 }) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -4210,8 +4221,15 @@ function AdminUserVerificationGrid({
         const selectedRoles = item.roles.map((role) => role.name as RoleName);
         return (
           <Card key={item.id} className="professional-card p-4 flex flex-col gap-4">
-            <div className="flex flex-col gap-1.5">
-              <span className="font-semibold text-lg">{item.name}</span>
+            <div className="flex flex-col gap-1.5 flex-1">
+              <div className="flex justify-between items-start">
+                <span className="font-semibold text-lg">{item.name}</span>
+                {onDeleteUser && (
+                  <button type="button" onClick={() => onDeleteUser(item.id)} disabled={busy} className="text-red-500 hover:text-red-700 hover:bg-red-50 p-1 rounded-md transition-colors" title="Hapus User">
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
               <span className="text-sm opacity-70 font-mono">{item.email}</span>
             </div>
             
