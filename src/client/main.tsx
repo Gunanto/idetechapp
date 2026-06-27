@@ -59,7 +59,8 @@ import {
   ListOrdered,
   AlignJustify,
   MessageCircle,
-  Send
+  Calendar,
+  Timer,
 } from "lucide-react";
 import { Button, Card, SecondaryButton, Select, StatusPill } from "./components/ui";
 import "./styles.css";
@@ -306,6 +307,7 @@ type StudentIndicator = {
   id: string;
   title: string;
   subtitle: string;
+  targetDate?: string;
   badge?: string;
   connected: boolean;
 };
@@ -1202,7 +1204,13 @@ function StudentCompactDashboard({
               </div>
               <div>
                 <h3 className="font-bold text-lg text-slate-800">{activeOrb.title}</h3>
-                <p className="text-sm font-semibold text-blue-600">{activeOrb.subtitle}</p>
+                {activeOrb.targetDate ? (
+                  <div className="mt-1">
+                    <AgendaCountdown targetDate={new Date(activeOrb.targetDate)} />
+                  </div>
+                ) : (
+                  <p className="text-sm font-semibold text-blue-600">{activeOrb.subtitle}</p>
+                )}
               </div>
             </div>
             
@@ -2249,6 +2257,347 @@ function AdminBottomNav({
   );
 }
 
+function AgendaCountdown({ targetDate }: { targetDate: Date }) {
+  const [timeLeft, setTimeLeft] = useState({ days: 0, hours: 0, minutes: 0, isExpired: false });
+
+  useEffect(() => {
+    const calculateTimeLeft = () => {
+      const now = new Date();
+      const diff = targetDate.getTime() - now.getTime();
+      
+      if (diff <= 0) {
+        setTimeLeft({ days: 0, hours: 0, minutes: 0, isExpired: true });
+        return;
+      }
+
+      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+      const hours = Math.floor((diff / (1000 * 60 * 60)) % 24);
+      const minutes = Math.floor((diff / 1000 / 60) % 60);
+
+      setTimeLeft({ days, hours, minutes, isExpired: false });
+    };
+
+    calculateTimeLeft();
+    const interval = setInterval(calculateTimeLeft, 60000);
+    return () => clearInterval(interval);
+  }, [targetDate]);
+
+  const { days, hours, minutes, isExpired } = timeLeft;
+  const isPulsating = !isExpired && days === 0 && hours === 0 && minutes <= 59;
+  
+  if (isExpired) {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-red-50 border border-red-200 rounded-lg text-xs font-bold text-red-600 shadow-sm">
+        <Timer className="w-3.5 h-3.5" />
+        Terlewat
+      </span>
+    );
+  }
+
+  return (
+    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-600 shadow-sm transition-colors ${isPulsating ? 'animate-pulse text-orange-600 border-orange-300 bg-orange-50' : ''}`}>
+      <Timer className={`w-3.5 h-3.5 ${isPulsating ? 'text-orange-500' : 'text-slate-400'}`} />
+      {String(days).padStart(2, '0')} hari : {String(hours).padStart(2, '0')} jam : {String(minutes).padStart(2, '0')} menit
+    </span>
+  );
+}
+
+function TeacherAgendaCalendar({ materials, quests, classes }: { materials: TeacherMaterial[]; quests: TeacherIdeQuest[]; classes: TeacherClass[] }) {
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedDateForModal, setSelectedDateForModal] = useState<number | null>(null);
+  const currentRealDate = new Date();
+  const currentRealMonth = currentRealDate.getMonth();
+  const currentRealYear = currentRealDate.getFullYear();
+  const todayDay = currentRealDate.getDate();
+
+  const [selectedMonth, setSelectedMonth] = useState(5); // Default to June (5) for mock
+  const [selectedYear, setSelectedYear] = useState(2026); // Default to 2026 for mock
+  const [weekStartIndex, setWeekStartIndex] = useState(21);
+
+  const months = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+  const days = ["SEN", "SEL", "RAB", "KAM", "JUM", "SAB", "MIN"];
+
+  const daysInMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate();
+  const firstDay = new Date(selectedYear, selectedMonth, 1).getDay();
+  const firstDayOffset = (firstDay + 6) % 7; // Monday = 0
+  const totalCells = Math.ceil((firstDayOffset + daysInMonth) / 7) * 7;
+  
+  const gridCells = Array.from({ length: totalCells }, (_, i) => {
+    const date = i - firstDayOffset + 1;
+    return (date > 0 && date <= daysInMonth) ? date : null;
+  });
+
+  const eventsMap = useMemo(() => {
+    const map: Record<number, number> = {};
+    const addDate = (dateStr?: string) => {
+      if (!dateStr) return;
+      const d = new Date(dateStr);
+      if (!isNaN(d.getTime()) && d.getMonth() === selectedMonth && d.getFullYear() === selectedYear) {
+        const day = d.getDate();
+        map[day] = (map[day] || 0) + 1;
+      }
+    };
+    materials.forEach(m => addDate(m.options?.dueDate));
+    quests.forEach(q => addDate(q.dueDate));
+    return map;
+  }, [materials, quests, selectedMonth, selectedYear]);
+
+  const currentMonthAgendas = useMemo(() => {
+    const list: Array<{ type: 'materi' | 'quest', title: string, classId: string, date: Date }> = [];
+    
+    materials.forEach(m => {
+      if (m.options?.dueDate) {
+        const d = new Date(m.options.dueDate);
+        if (!isNaN(d.getTime()) && d.getMonth() === selectedMonth && d.getFullYear() === selectedYear) {
+          list.push({ type: 'materi', title: m.title, classId: m.classId, date: d });
+        }
+      }
+    });
+    
+    quests.forEach(q => {
+      if (q.dueDate) {
+        const d = new Date(q.dueDate);
+        if (!isNaN(d.getTime()) && d.getMonth() === selectedMonth && d.getFullYear() === selectedYear) {
+          list.push({ type: 'quest', title: q.title, classId: q.classId, date: d });
+        }
+      }
+    });
+
+    return list.sort((a, b) => a.date.getTime() - b.date.getTime());
+  }, [materials, quests, selectedMonth, selectedYear]);
+  
+  const isCurrentMonth = selectedMonth === currentRealMonth && selectedYear === currentRealYear;
+  const activeDate = isCurrentMonth ? todayDay : -1;
+
+  // Active week is dynamic
+  const activeWeekDates = gridCells.slice(weekStartIndex, weekStartIndex + 7);
+
+  function prevWeek() {
+    setWeekStartIndex(prev => Math.max(0, prev - 7));
+  }
+
+  function nextWeek() {
+    setWeekStartIndex(prev => Math.min(gridCells.length - 7, prev + 7));
+  }
+
+  function goToCurrentMonth() {
+    setSelectedMonth(currentRealMonth);
+    setSelectedYear(currentRealYear);
+    const offset = (new Date(currentRealYear, currentRealMonth, 1).getDay() + 6) % 7;
+    setWeekStartIndex(Math.floor((offset + todayDay - 1) / 7) * 7);
+  }
+
+  function prevMonth() {
+    if (selectedMonth === 0) {
+      setSelectedMonth(11);
+      setSelectedYear(selectedYear - 1);
+    } else {
+      setSelectedMonth(selectedMonth - 1);
+    }
+    setWeekStartIndex(0);
+  }
+
+  function nextMonth() {
+    if (selectedMonth === 11) {
+      setSelectedMonth(0);
+      setSelectedYear(selectedYear + 1);
+    } else {
+      setSelectedMonth(selectedMonth + 1);
+    }
+    setWeekStartIndex(0);
+  }
+
+  return (
+    <>
+      <div className="mb-8 animate-fade-in-up" style={{ animationDelay: "100ms" }}>
+        <div className="mb-4">
+          <h2 className="text-xl font-bold text-white tracking-tight">Agenda Terdekat</h2>
+          <p className="text-white/70 text-sm">Kalender kegiatan sekolah. Klik tanggal yang ditandai untuk melihat detail.</p>
+        </div>
+        <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-4 md:p-6 overflow-hidden relative">
+          <div className="flex flex-col md:flex-row md:items-center justify-between mb-4 gap-4">
+            <div>
+              <p className="text-orange-500 text-[10px] md:text-xs font-bold tracking-wider mb-1 uppercase">Kalender Agenda</p>
+              <div className="flex items-center gap-1 group relative">
+                <select 
+                  value={selectedMonth} 
+                  onChange={e => { setSelectedMonth(Number(e.target.value)); setWeekStartIndex(0); }}
+                  className="text-xl md:text-2xl font-extrabold text-slate-800 tracking-tight bg-transparent border-none focus:ring-0 cursor-pointer p-0 appearance-none outline-none hover:text-blue-600 transition-colors z-10"
+                >
+                  {months.map((m, i) => (
+                    <option key={i} value={i}>{m} {selectedYear}</option>
+                  ))}
+                </select>
+                <ChevronDown className="h-5 w-5 text-slate-400 group-hover:text-blue-600 transition-colors" />
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <button 
+                type="button"
+                onClick={goToCurrentMonth}
+                className="h-9 md:h-10 px-3 md:px-4 rounded-xl border border-slate-200 text-slate-600 text-xs md:text-sm font-bold hover:bg-slate-50 transition-colors"
+              >
+                Bulan Ini
+              </button>
+              <div className="flex items-center gap-1">
+                <button 
+                  type="button"
+                  onClick={prevWeek}
+                  className="h-9 w-9 md:h-10 md:w-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 hover:bg-slate-200 transition-colors"
+                >
+                  <ChevronLeft className="h-4 w-4 md:h-5 md:w-5" />
+                </button>
+                <button 
+                  type="button"
+                  onClick={nextWeek}
+                  className="h-9 w-9 md:h-10 md:w-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 hover:bg-slate-200 transition-colors"
+                >
+                  <ChevronRight className="h-4 w-4 md:h-5 md:w-5" />
+                </button>
+              </div>
+              <button 
+                type="button"
+                onClick={() => {
+                  setSelectedDateForModal(null);
+                  setIsModalOpen(true);
+                }}
+                className="h-9 md:h-10 px-3 md:px-4 rounded-xl border border-blue-200 text-blue-700 text-xs md:text-sm font-bold hover:bg-blue-50 transition-colors ml-1"
+              >
+                Lihat Semua Agenda
+              </button>
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-7 gap-2 md:gap-4 mb-2">
+            {days.map(d => (
+              <div key={d} className="text-center text-[10px] md:text-xs font-bold text-slate-400 tracking-wider">
+                {d}
+              </div>
+            ))}
+          </div>
+          <div className="grid grid-cols-7 gap-2 md:gap-4">
+            {activeWeekDates.map((date, index) => {
+              if (date === null) {
+                return <div key={`empty-wk-${index}`} className="h-14 md:h-20 rounded-xl md:rounded-2xl border border-transparent"></div>;
+              }
+              const hasEvent = date in eventsMap;
+              const isSelected = date === activeDate;
+              return (
+                <div 
+                  key={date} 
+                  onClick={() => {
+                    if (hasEvent) {
+                      setSelectedDateForModal(date);
+                      setIsModalOpen(true);
+                    }
+                  }}
+                  className={`
+                    relative h-14 md:h-20 rounded-xl md:rounded-2xl border p-2 flex flex-col justify-start transition-all ${hasEvent ? 'cursor-pointer' : 'cursor-default'}
+                    ${hasEvent ? "bg-orange-50/50 border-orange-200 hover:bg-orange-50" : 
+                      isSelected ? "bg-white border-blue-500 shadow-[0_0_0_2px_rgba(59,130,246,0.2)]" : 
+                      "bg-slate-50/30 border-slate-100 hover:bg-slate-50"}
+                  `}
+                >
+                  <div className={`text-xs md:text-sm font-bold ${hasEvent ? "bg-orange-500 text-white w-6 h-6 md:w-7 md:h-7 flex items-center justify-center rounded-full" : "text-slate-600 p-0.5"}`}>
+                    {date}
+                  </div>
+                  {hasEvent && (
+                    <div className="absolute bottom-1.5 right-1.5 md:bottom-2 md:right-2 w-4 h-4 md:w-5 md:h-5 bg-blue-700/90 text-white text-[9px] md:text-[10px] font-bold rounded-full flex items-center justify-center shadow-sm">
+                      {eventsMap[date]}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {isModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl max-w-3xl w-full p-4 md:p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
+            <button 
+              type="button"
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 bg-slate-100 rounded-full p-1 transition-colors z-20" 
+              onClick={() => setIsModalOpen(false)}
+            >
+              <X className="h-5 w-5 md:h-6 md:w-6" />
+            </button>
+            
+            <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4 pr-10">
+              <div>
+                <p className="text-orange-500 text-xs font-bold tracking-wider mb-1 uppercase">Kalender Agenda</p>
+                <div className="flex items-center gap-1 group relative">
+                  <select 
+                    value={selectedMonth} 
+                    onChange={e => { setSelectedMonth(Number(e.target.value)); setWeekStartIndex(0); setSelectedDateForModal(null); }}
+                    className="text-2xl md:text-3xl font-extrabold text-slate-800 tracking-tight bg-transparent border-none focus:ring-0 cursor-pointer p-0 appearance-none outline-none hover:text-blue-600 transition-colors z-10"
+                  >
+                    {months.map((m, i) => (
+                      <option key={i} value={i}>{m} {selectedYear}</option>
+                    ))}
+                  </select>
+                  <ChevronDown className="h-6 w-6 text-slate-400 group-hover:text-blue-600 transition-colors" />
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button onClick={() => { prevMonth(); setSelectedDateForModal(null); }} className="h-9 w-9 md:h-10 md:w-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 hover:bg-slate-200 transition-colors">
+                  <ChevronLeft className="h-4 w-4 md:h-5 md:w-5" />
+                </button>
+                <button onClick={() => { goToCurrentMonth(); setSelectedDateForModal(null); }} className="h-9 md:h-10 px-3 md:px-4 rounded-full bg-blue-50 text-blue-700 text-xs md:text-sm font-bold hover:bg-blue-100 transition-colors">
+                  Bulan Ini
+                </button>
+                <button onClick={() => { nextMonth(); setSelectedDateForModal(null); }} className="h-9 w-9 md:h-10 md:w-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 hover:bg-slate-200 transition-colors">
+                  <ChevronRight className="h-4 w-4 md:h-5 md:w-5" />
+                </button>
+              </div>
+            </div>
+            
+            <div className="mt-2">
+              <h4 className="text-lg font-bold text-slate-800 mb-4">
+                {selectedDateForModal 
+                  ? `Agenda: ${selectedDateForModal} ${months[selectedMonth]} ${selectedYear}` 
+                  : `Daftar Agenda (${months[selectedMonth]} ${selectedYear})`}
+              </h4>
+              
+              {(() => {
+                const filteredAgendas = currentMonthAgendas.filter(a => selectedDateForModal === null || a.date.getDate() === selectedDateForModal);
+                if (filteredAgendas.length === 0) {
+                  return <div className="text-center py-8 text-slate-500">Belum ada agenda untuk {selectedDateForModal ? 'tanggal' : 'bulan'} ini.</div>;
+                }
+                return (
+                  <div className="space-y-3">
+                    {filteredAgendas.map((agenda, i) => (
+                      <div key={i} className="flex flex-col md:flex-row md:items-center justify-between p-4 bg-slate-50 border border-slate-100 rounded-xl hover:bg-slate-100 transition-colors">
+                        <div className="flex items-start gap-3">
+                          <div className={`mt-1 flex items-center justify-center min-w-8 w-8 h-8 rounded-full ${agenda.type === 'materi' ? 'bg-blue-100 text-blue-600' : 'bg-purple-100 text-purple-600'}`}>
+                            {agenda.type === 'materi' ? <BookOpen className="w-4 h-4" /> : <Target className="w-4 h-4" />}
+                          </div>
+                          <div>
+                            <p className="font-bold text-slate-800 leading-tight">{agenda.title}</p>
+                            <p className="text-xs font-medium text-slate-500 mt-1">Kelas: {classes.find(c => c.id === agenda.classId)?.name || agenda.classId}</p>
+                          </div>
+                        </div>
+                        <div className="mt-3 md:mt-0 md:text-right shrink-0">
+                          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 md:hidden">Tenggat Waktu</div>
+                          <span className="inline-flex flex-col md:items-end gap-1">
+                            <AgendaCountdown targetDate={agenda.date} />
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider hidden md:block">Tenggat Waktu</span>
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 function TeacherSpaceDashboard({
   user,
   dashboard,
@@ -2480,6 +2829,34 @@ function TeacherSpaceDashboard({
     setQuestForm({ classId: "", materialId: "", title: "", mission: "", points: "100", dueDate: "" });
   }
 
+  async function deleteMaterial(id: string) {
+    if (!confirm("Yakin ingin menghapus materi ini?")) return;
+    setStudioBusy(true);
+    setStudioError(null);
+    try {
+      await api(`/api/teacher/materials/${id}`, { method: "DELETE" });
+      await loadTeacherStudio();
+    } catch (err) {
+      setStudioError(err instanceof Error ? err.message : "Gagal menghapus materi.");
+    } finally {
+      setStudioBusy(false);
+    }
+  }
+
+  async function deleteQuest(id: string) {
+    if (!confirm("Yakin ingin menghapus IdeQuest ini?")) return;
+    setStudioBusy(true);
+    setStudioError(null);
+    try {
+      await api(`/api/teacher/idequests/${id}`, { method: "DELETE" });
+      await loadTeacherStudio();
+    } catch (err) {
+      setStudioError(err instanceof Error ? err.message : "Gagal menghapus IdeQuest.");
+    } finally {
+      setStudioBusy(false);
+    }
+  }
+
   function openTeacherFeature(featureName: string) {
     if (featureName.includes("Jurnal") || featureName.includes("jurnal")) {
       setActiveFeature("jurnal");
@@ -2663,6 +3040,8 @@ function TeacherSpaceDashboard({
               onEditQuest={startEditQuest}
               onCancelEditMaterial={cancelEditMaterial}
               onCancelEditQuest={cancelEditQuest}
+              onDeleteMaterial={deleteMaterial}
+              onDeleteQuest={deleteQuest}
             />
           ) : activeMenu === "quest" ? (
             <TeacherClassManager
@@ -2678,6 +3057,7 @@ function TeacherSpaceDashboard({
             <TeacherProfileView user={user} />
           ) : (
             <>
+              <TeacherAgendaCalendar materials={materials} quests={ideQuestRows} classes={teacherClasses} />
               <section className="teacher-space-card-grid">
                 {exploreCards.map((feature, index) => (
                   <button
@@ -2821,7 +3201,9 @@ function TeacherStudioManager({
   onEditMaterial,
   onEditQuest,
   onCancelEditMaterial,
-  onCancelEditQuest
+  onCancelEditQuest,
+  onDeleteMaterial,
+  onDeleteQuest
 }: {
   classes: TeacherClass[];
   materials: TeacherMaterial[];
@@ -2840,6 +3222,8 @@ function TeacherStudioManager({
   onEditQuest?: (quest: TeacherIdeQuest) => void;
   onCancelEditMaterial?: () => void;
   onCancelEditQuest?: () => void;
+  onDeleteMaterial?: (id: string) => void;
+  onDeleteQuest?: (id: string) => void;
 }) {
   const [activeTab, setActiveTab] = React.useState<"material" | "quest">("material");
   const [showMarkdownGuide, setShowMarkdownGuide] = React.useState(false);
@@ -3288,6 +3672,11 @@ function TeacherStudioManager({
                     <Pencil className="h-4 w-4" />
                   </button>
                 )}
+                {onDeleteMaterial && (
+                  <button type="button" onClick={() => onDeleteMaterial(item.id)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors" title="Hapus Materi">
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                )}
               </div>
             </article>
           ))}
@@ -3314,6 +3703,11 @@ function TeacherStudioManager({
                 {onEditQuest && (
                   <button type="button" onClick={() => onEditQuest(item)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors" title="Edit IdeQuest">
                     <Pencil className="h-4 w-4" />
+                  </button>
+                )}
+                {onDeleteQuest && (
+                  <button type="button" onClick={() => onDeleteQuest(item.id)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors" title="Hapus IdeQuest">
+                    <Trash2 className="h-4 w-4" />
                   </button>
                 )}
               </div>
@@ -5673,30 +6067,150 @@ function AdminBankApprovalPanel() {
   );
 }
 
+type StudentProgressReport = {
+  studentId: string;
+  studentName: string;
+  studentEmail: string;
+  avatarUrl: string | null;
+  className: string;
+  materials: { id: string; title: string; type: string; progress: number; completedAt: string | null; dueDate: string | null; isLate: boolean }[];
+  quests: { id: string; title: string; type: string; progress: number; completedAt: string | null; dueDate: string | null; isLate: boolean }[];
+};
+
 function TeacherRadarView({ onClose }: { onClose: () => void }) {
+  const [data, setData] = useState<StudentProgressReport[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchProgress() {
+      try {
+        const res = await api<{ progress: StudentProgressReport[] }>("/api/teacher/student-progress");
+        setData(res.progress);
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchProgress();
+  }, []);
+
   return (
-    <div className="bg-white rounded-t-3xl min-h-[60vh] p-6 shadow-[0_-10px_40px_rgba(0,0,0,0.1)] relative mt-4 animate-in slide-in-from-bottom-10">
+    <div className="bg-white rounded-t-3xl min-h-[60vh] p-4 md:p-6 shadow-[0_-10px_40px_rgba(0,0,0,0.1)] relative mt-4 animate-in slide-in-from-bottom-10">
       <div className="absolute top-3 left-1/2 -translate-x-1/2 w-12 h-1.5 bg-slate-200 rounded-full" />
       
       <div className="flex justify-between items-center mt-4 mb-6">
         <div>
-          <h2 className="text-xl font-bold text-slate-800">Radar Pintar</h2>
-          <p className="text-sm text-slate-500">Analisis progres dan insight belajar siswa</p>
+          <h2 className="text-xl font-bold text-slate-800">Radar Pintar (Progres Siswa)</h2>
+          <p className="text-sm text-slate-500">Analisis progres belajar, materi, dan IdeQuest siswa</p>
         </div>
         <button type="button" onClick={onClose} className="p-2 bg-slate-100 text-slate-600 rounded-full hover:bg-slate-200">
           <X className="h-5 w-5" />
         </button>
       </div>
 
-      <div className="flex flex-col items-center justify-center py-12 text-center border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50">
-        <div className="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mb-4 shadow-inner">
-          <Target className="h-8 w-8" />
+      {loading ? (
+        <div className="flex flex-col items-center justify-center py-12">
+          <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4" />
+          <p className="text-slate-500">Memuat data siswa...</p>
         </div>
-        <h3 className="text-lg font-bold text-slate-800 mb-2">Segera Hadir</h3>
-        <p className="text-sm text-slate-500 max-w-sm px-4">
-          Fitur analitik Radar Pintar untuk memantau performa siswa secara *real-time* sedang dalam tahap pengembangan akhir.
-        </p>
-      </div>
+      ) : data.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-12 text-center border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50">
+          <div className="w-16 h-16 bg-slate-100 text-slate-400 rounded-full flex items-center justify-center mb-4">
+            <Users className="h-8 w-8" />
+          </div>
+          <p className="text-slate-500">Belum ada siswa di kelas Anda.</p>
+        </div>
+      ) : (
+        <div className="space-y-6">
+          {data.map(student => {
+            const allTasks = [...student.materials, ...student.quests];
+            const completed = allTasks.filter(t => t.progress >= 100);
+            const lateCompleted = completed.filter(t => t.isLate);
+            const onTimeCompleted = completed.filter(t => !t.isLate);
+            
+            return (
+              <div key={student.studentId} className="bg-slate-50 border border-slate-200 rounded-2xl p-4 md:p-5">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+                  <div className="flex items-center gap-4">
+                    {student.avatarUrl ? (
+                      <img src={student.avatarUrl} alt={student.studentName} className="w-12 h-12 rounded-full border-2 border-white shadow-sm object-cover" />
+                    ) : (
+                      <div className="w-12 h-12 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-lg border-2 border-white shadow-sm">
+                        {student.studentName.charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                    <div>
+                      <h3 className="font-bold text-slate-800 text-lg leading-tight">{student.studentName}</h3>
+                      <p className="text-sm text-slate-500">{student.className} • {student.studentEmail}</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <div className="px-3 py-1.5 bg-green-100 text-green-700 rounded-lg text-xs font-bold flex items-center gap-1.5">
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      {onTimeCompleted.length} Tepat Waktu
+                    </div>
+                    {lateCompleted.length > 0 && (
+                      <div className="px-3 py-1.5 bg-red-100 text-red-700 rounded-lg text-xs font-bold flex items-center gap-1.5">
+                        <Timer className="w-3.5 h-3.5" />
+                        {lateCompleted.length} Terlambat
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Materi ({student.materials.length})</h4>
+                    <div className="space-y-2">
+                      {student.materials.map(m => (
+                        <div key={m.id} className="flex items-center justify-between bg-white p-3 rounded-xl border border-slate-100 shadow-sm">
+                          <div className="flex items-center gap-2 overflow-hidden">
+                            <BookOpen className="w-4 h-4 text-blue-500 shrink-0" />
+                            <span className="text-sm font-medium text-slate-700 truncate" title={m.title}>{m.title}</span>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0 ml-2">
+                            <span className="text-xs font-bold text-slate-500">{m.progress}%</span>
+                            {m.progress >= 100 && (
+                              <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${m.isLate ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'}`}>
+                                {m.isLate ? 'Terlambat' : 'Selesai'}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                      {student.materials.length === 0 && <p className="text-sm text-slate-400 italic">Belum ada materi</p>}
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">IdeQuest ({student.quests.length})</h4>
+                    <div className="space-y-2">
+                      {student.quests.map(q => (
+                        <div key={q.id} className="flex items-center justify-between bg-white p-3 rounded-xl border border-slate-100 shadow-sm">
+                          <div className="flex items-center gap-2 overflow-hidden">
+                            <Target className="w-4 h-4 text-purple-500 shrink-0" />
+                            <span className="text-sm font-medium text-slate-700 truncate" title={q.title}>{q.title}</span>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0 ml-2">
+                            <span className="text-xs font-bold text-slate-500">{q.progress}%</span>
+                            {q.progress >= 100 && (
+                              <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${q.isLate ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'}`}>
+                                {q.isLate ? 'Terlambat' : 'Selesai'}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                      {student.quests.length === 0 && <p className="text-sm text-slate-400 italic">Belum ada IdeQuest</p>}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

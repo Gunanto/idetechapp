@@ -1,5 +1,5 @@
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, inArray } from "drizzle-orm";
 import { Hono } from "hono";
 import { nanoid } from "nanoid";
 import { db } from "../db/client";
@@ -518,6 +518,20 @@ app.patch("/teacher/materials/:id", requireRole(["teacher", "admin"]), requirePe
   return c.json({ material: updated });
 });
 
+app.delete("/teacher/materials/:id", requireRole(["teacher", "admin"]), requirePermission("material.create"), async (c) => {
+  const user = c.get("authUser");
+  const id = c.req.param("id");
+  if (!id) return c.json({ message: "ID materi wajib diisi." }, 400);
+
+  const [targetMaterial] = await db.select().from(materials).where(eq(materials.id, id));
+  if (!targetMaterial || (user.activeRole !== "admin" && targetMaterial.teacherUserId !== user.id)) {
+    return c.json({ message: "Materi tidak ditemukan atau bukan milik guru aktif." }, 404);
+  }
+
+  await db.delete(materials).where(eq(materials.id, id));
+  return c.json({ ok: true });
+});
+
 app.get("/teacher/idequests", requireRole(["teacher", "admin"]), requirePermission("quest.manage"), async (c) => {
   const user = c.get("authUser");
   const rows =
@@ -619,6 +633,106 @@ app.patch("/teacher/idequests/:id", requireRole(["teacher", "admin"]), requirePe
     .returning();
 
   return c.json({ quest: updated });
+});
+
+app.delete("/teacher/idequests/:id", requireRole(["teacher", "admin"]), requirePermission("quest.manage"), async (c) => {
+  const user = c.get("authUser");
+  const id = c.req.param("id");
+  if (!id) return c.json({ message: "ID IdeQuest wajib diisi." }, 400);
+
+  const [targetQuest] = await db.select().from(ideQuests).where(eq(ideQuests.id, id));
+  if (!targetQuest || (user.activeRole !== "admin" && targetQuest.teacherUserId !== user.id)) {
+    return c.json({ message: "IdeQuest tidak ditemukan atau bukan milik guru aktif." }, 404);
+  }
+
+  await db.delete(ideQuests).where(eq(ideQuests.id, id));
+  return c.json({ ok: true });
+});
+
+app.get("/teacher/student-progress", requireRole(["teacher", "admin"]), requirePermission("report.view"), async (c) => {
+  const user = c.get("authUser");
+  
+  const teacherClasses = await db.select().from(classes).where(eq(classes.teacherUserId, user.id));
+  const classIds = teacherClasses.map(c => c.id);
+
+  if (classIds.length === 0) {
+    return c.json({ progress: [] });
+  }
+
+  const studentsInClasses = await db.select({
+    studentId: classStudents.studentUserId,
+    classId: classStudents.classId,
+    studentName: users.name,
+    studentEmail: users.email,
+    avatarUrl: users.avatarUrl
+  })
+  .from(classStudents)
+  .innerJoin(users, eq(classStudents.studentUserId, users.id))
+  .where(inArray(classStudents.classId, classIds));
+
+  const teacherMaterials = await db.select().from(materials).where(inArray(materials.classId, classIds));
+  const materialIds = teacherMaterials.map(m => m.id);
+
+  const teacherQuests = await db.select().from(ideQuests).where(inArray(ideQuests.classId, classIds));
+  const questIds = teacherQuests.map(q => q.id);
+
+  let matProgress: any[] = [];
+  if (materialIds.length > 0) {
+    matProgress = await db.select().from(studentMaterialProgress).where(inArray(studentMaterialProgress.materialId, materialIds));
+  }
+
+  let qstProgress: any[] = [];
+  if (questIds.length > 0) {
+    qstProgress = await db.select().from(studentQuestProgress).where(inArray(studentQuestProgress.questId, questIds));
+  }
+
+  const result = studentsInClasses.map(sc => {
+    const studentMats = teacherMaterials.filter(m => m.classId === sc.classId).map(m => {
+      const prog = matProgress.find(p => p.materialId === m.id && p.studentUserId === sc.studentId);
+      const isLate = (m.options as any)?.dueDate && prog?.completedAt 
+        ? new Date(prog.completedAt).getTime() > new Date((m.options as any).dueDate).getTime() 
+        : false;
+      
+      return {
+        id: m.id,
+        title: m.title,
+        type: 'material',
+        progress: prog?.progress || 0,
+        completedAt: prog?.completedAt || null,
+        dueDate: (m.options as any)?.dueDate || null,
+        isLate
+      };
+    });
+
+    const studentQsts = teacherQuests.filter(q => q.classId === sc.classId).map(q => {
+      const prog = qstProgress.find(p => p.questId === q.id && p.studentUserId === sc.studentId);
+      const isLate = q.dueDate && prog?.completedAt 
+        ? new Date(prog.completedAt).getTime() > new Date(q.dueDate).getTime() 
+        : false;
+      
+      return {
+        id: q.id,
+        title: q.title,
+        type: 'quest',
+        progress: prog?.progress || 0,
+        completedAt: prog?.completedAt || null,
+        dueDate: q.dueDate || null,
+        isLate
+      };
+    });
+
+    return {
+      studentId: sc.studentId,
+      studentName: sc.studentName,
+      studentEmail: sc.studentEmail,
+      avatarUrl: sc.avatarUrl,
+      className: teacherClasses.find(c => c.id === sc.classId)?.name || "Unknown",
+      materials: studentMats,
+      quests: studentQsts
+    };
+  });
+
+  return c.json({ progress: result });
 });
 
 app.post("/teacher/journals", requireRole(["teacher", "admin"]), async (c) => {
@@ -1252,6 +1366,7 @@ app.get("/student/indicators", requireRole(["student"]), async (c) => {
         id: "map",
         title: "Map",
         subtitle: formatTimeLeft(nextMaterialDueDate),
+        targetDate: nextMaterialDueDate,
         badge: dueSoonCount > 0 ? `+${dueSoonCount}` : undefined,
         connected: pendingCount > 0
       },
@@ -1259,6 +1374,7 @@ app.get("/student/indicators", requireRole(["student"]), async (c) => {
         id: "quest",
         title: "Quest",
         subtitle: formatTimeLeft(nextQuestDueDate),
+        targetDate: nextQuestDueDate,
         badge: pendingCount > 0 ? String(pendingCount) : undefined,
         connected: pendingCount > 0
       },
@@ -1275,6 +1391,7 @@ app.get("/student/indicators", requireRole(["student"]), async (c) => {
         id: "tasks",
         title: "Tugas aktif",
         subtitle: formatTimeLeft(nextMaterialDueDate || nextQuestDueDate),
+        targetDate: nextMaterialDueDate || nextQuestDueDate,
         badge: dueSoonCount > 0 ? String(dueSoonCount) : undefined,
         connected: dueSoonCount > 0
       },
