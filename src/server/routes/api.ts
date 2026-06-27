@@ -181,6 +181,19 @@ app.patch("/admin/users/:id/verify", requireRole(["admin"]), requirePermission("
   return c.json({ ok: true });
 });
 
+app.delete("/admin/users/:id", requireRole(["admin"]), requirePermission("user.manage"), async (c) => {
+  const id = c.req.param("id");
+  if (!id) return c.json({ message: "User id wajib diisi." }, 400);
+
+  const authUser = c.get("authUser");
+  if (authUser.id === id) {
+    return c.json({ message: "Admin aktif tidak bisa menghapus akunnya sendiri." }, 400);
+  }
+
+  await db.delete(users).where(eq(users.id, id));
+  return c.json({ ok: true });
+});
+
 app.get("/admin/access", requireRole(["admin"]), requirePermission("system.setting"), async (c) => {
   const [allUsers, allRoles, allPermissions, allRolePermissions] = await Promise.all([
     db.select().from(users),
@@ -1195,8 +1208,8 @@ app.get("/student/indicators", requireRole(["student"]), async (c) => {
     : studentQuestCatalog.filter((quest) => quest.progress >= 100).length;
   const totalUnits = visibleMaterials.length + (dbQuests.length || studentQuestCatalog.length);
   const completedUnits = completedMaterials + completedQuests;
-  const levelValue = Math.max(1, dbQuests.length * 10 + completedUnits + Math.floor(totalPoints / 100));
-  const chapterValue = activeClass ? visibleMaterials.length : 0;
+  const levelValue = 1 + completedQuests;
+  const chapterValue = activeClass ? Math.max(1, visibleMaterials.length) : 1;
   const chapterLabel = activeClass ? `Chapter ${chapterValue}` : "Belum Masuk Kelas";
   const chapterProgressLabel = totalUnits > 0 ? `${completedUnits}/${totalUnits}` : "0/0";
   const progressPercent = totalUnits > 0 ? Math.round((completedUnits / totalUnits) * 100) : 0;

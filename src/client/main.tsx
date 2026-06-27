@@ -38,6 +38,7 @@ import {
   Frown,
   Meh,
   Plus,
+  Trash2,
   Upload,
   Image as ImageIcon,
   CheckCircle2,
@@ -684,6 +685,20 @@ function App() {
     }
   }
 
+  async function deleteAdminUser(id: string) {
+    if (!confirm("Yakin ingin menghapus user ini secara permanen? Semua data terkait (kelas, materi, progress) akan hilang.")) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await api(`/api/admin/users/${id}`, { method: "DELETE" });
+      await loadDashboard();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Gagal menghapus user.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function updateRolePermissions(role: RoleName, permissions: string[]) {
     setBusy(true);
     setError(null);
@@ -784,6 +799,7 @@ function App() {
       onLogout={logout}
       onSwitchRole={switchRole}
       onUpdateAdminUser={updateAdminUser}
+      onDeleteAdminUser={deleteAdminUser}
       onUpdateRolePermissions={updateRolePermissions}
       onCreateAdminClass={createAdminClass}
       onUpdateAdminClass={updateAdminClass}
@@ -1380,6 +1396,11 @@ function StudentContentModal({
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [classCode, setClassCode] = useState("");
   const [showClasses, setShowClasses] = useState(false);
+  const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
+  
+  const activeClassId = selectedClassId ?? classes[0]?.id ?? null;
+  const activeMaterials = materials.filter(m => !activeClassId || m.classId === activeClassId);
+  const activeQuests = quests.filter(q => !activeClassId || !q.classId || q.classId === activeClassId);
   const title = roleMenuLabels.student[active];
   const summary = {
     studio: "Materi dari guru yang bisa dipelajari siswa.",
@@ -1582,10 +1603,19 @@ function StudentContentModal({
                 <div className="student-class-list mt-2 pt-4 border-t-2 border-[#e6b12a] w-full">
                   {classes.length ? null : <p className="text-[#7d2f0f] text-sm font-bold text-center">Belum tergabung di kelas.</p>}
                   {classes.map((kelas) => (
-                    <article key={kelas.id} className="student-class-card">
-                      <span>{kelas.classCode ?? kelas.nextSession}</span>
-                      <strong>{kelas.name}</strong>
-                      <small>{kelas.subject} - Kelas {kelas.grade} · {kelas.students} siswa</small>
+                    <article key={kelas.id} className={`student-class-card ${activeClassId === kelas.id ? "ring-2 ring-[#e6b12a]" : ""}`}>
+                      <div className="flex-1">
+                        <span>{kelas.classCode ?? kelas.nextSession}</span>
+                        <strong>{kelas.name}</strong>
+                        <small>{kelas.subject} - Kelas {kelas.grade} · {kelas.students} siswa</small>
+                      </div>
+                      <button 
+                        type="button"
+                        onClick={() => setSelectedClassId(kelas.id)}
+                        className={`text-xs px-3 py-1.5 rounded-full font-bold ml-3 border-b-2 transition-colors ${activeClassId === kelas.id ? "bg-[#e6b12a] text-white border-[#d69818]" : "bg-white text-[#7d2f0f] border-[#f0c34a] hover:bg-[#fff9e6]"}`}
+                      >
+                        {activeClassId === kelas.id ? "Terpilih" : "Masuk"}
+                      </button>
                     </article>
                   ))}
                 </div>
@@ -1593,18 +1623,18 @@ function StudentContentModal({
             </form>
 
             <div className="student-map-path-saga">
-              {[...materials, ...quests].length ? null : <p className="student-content-empty">Materi dan IdeQuest akan muncul setelah kamu masuk kelas.</p>}
+              {[...activeMaterials, ...activeQuests].length ? null : <p className="student-content-empty">Materi dan IdeQuest akan muncul setelah kamu masuk kelas.</p>}
               
               <div className="saga-path-container">
                 {(() => {
                   const pathNodes: { type: 'material'|'quest', data: any, id: string, title: string, progress: number }[] = [];
-                  materials.forEach(m => {
+                  activeMaterials.forEach(m => {
                     pathNodes.push({ type: 'material', data: m, id: m.id, title: m.title, progress: m.progress });
-                    quests.filter(q => q.materialId === m.id).forEach(q => {
+                    activeQuests.filter(q => q.materialId === m.id).forEach(q => {
                       pathNodes.push({ type: 'quest', data: q, id: q.id, title: q.title, progress: q.progress });
                     });
                   });
-                  quests.filter(q => !q.materialId).forEach(q => {
+                  activeQuests.filter(q => !q.materialId).forEach(q => {
                     pathNodes.push({ type: 'quest', data: q, id: q.id, title: q.title, progress: q.progress });
                   });
 
@@ -1736,6 +1766,7 @@ function ProfessionalDashboard({
   onLogout,
   onSwitchRole,
   onUpdateAdminUser,
+  onDeleteAdminUser,
   onUpdateRolePermissions,
   onCreateAdminClass,
   onUpdateAdminClass,
@@ -1753,6 +1784,7 @@ function ProfessionalDashboard({
   onLogout: () => void;
   onSwitchRole: (role: RoleName) => void;
   onUpdateAdminUser: (id: string, payload: { status?: string; roles?: RoleName[] }) => void;
+  onDeleteAdminUser: (id: string) => void;
   onUpdateRolePermissions: (role: RoleName, permissions: string[]) => void;
   onCreateAdminClass: (payload: { teacherUserId?: string; name: string; subject: string; grade: string; students: number; status: TeacherClass["status"] }) => void;
   onUpdateAdminClass: (id: string, payload: Partial<Pick<TeacherClass, "name" | "subject" | "grade" | "students" | "progress" | "status">> & { teacherUserId?: string }) => void;
@@ -3295,19 +3327,35 @@ function TeacherClassManager({
         </button>
       </form>
 
-      <div className="teacher-class-list">
-        {classes.map((item) => (
-          <article key={item.id} className="teacher-class-card">
-            <div>
-              <strong>{item.name}</strong>
-              <span>{item.subject} - {item.grade}</span>
-              <small>ClassID: {item.classCode ?? item.nextSession}</small>
+      <div className="teacher-class-grouped-list mt-8 flex flex-col gap-4">
+        {Object.entries(
+          classes.reduce((acc, curr) => {
+            if (!acc[curr.grade]) acc[curr.grade] = [];
+            acc[curr.grade].push(curr);
+            return acc;
+          }, {} as Record<string, typeof classes>)
+        ).sort(([a], [b]) => Number(a) - Number(b)).map(([grade, gradeClasses]) => (
+          <details key={grade} className="group border border-slate-200 rounded-xl bg-white overflow-hidden shadow-sm">
+            <summary className="flex items-center justify-between p-4 cursor-pointer bg-slate-50 hover:bg-slate-100 transition-colors select-none font-bold text-slate-800 outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
+              <span className="flex items-center gap-2">Jenjang {grade} <span className="bg-indigo-600/80 text-white text-xs px-2 py-0.5 rounded-full">{gradeClasses.length} kelas</span></span>
+              <ChevronDown className="h-5 w-5 text-slate-400 transform transition-transform duration-200 group-open:rotate-180" />
+            </summary>
+            <div className="p-4 grid gap-3 teacher-class-list bg-transparent">
+              {gradeClasses.map((item) => (
+                <article key={item.id} className="teacher-class-card">
+                  <div>
+                    <strong>{item.name}</strong>
+                    <span>{item.subject} - {item.grade}</span>
+                    <small>ClassID: {item.classCode ?? item.nextSession}</small>
+                  </div>
+                  <div className="teacher-class-card__meta">
+                    <span>{item.students} siswa</span>
+                    <b>{item.progress}%</b>
+                  </div>
+                </article>
+              ))}
             </div>
-            <div className="teacher-class-card__meta">
-              <span>{item.students} siswa</span>
-              <b>{item.progress}%</b>
-            </div>
-          </article>
+          </details>
         ))}
       </div>
     </section>
@@ -4229,6 +4277,17 @@ function AdminClassManager({
     status: "active" as TeacherClass["status"]
   });
 
+  const [searchGuru, setSearchGuru] = useState("");
+  const [searchJenjang, setSearchJenjang] = useState("");
+
+  const filteredClasses = classes.filter((kelas) => {
+    const teacher = teacherUsers.find((t) => t.id === kelas.teacherUserId);
+    const teacherName = teacher ? teacher.name.toLowerCase() : "";
+    const matchGuru = searchGuru ? teacherName.includes(searchGuru.toLowerCase()) : true;
+    const matchJenjang = searchJenjang ? kelas.grade === searchJenjang : true;
+    return matchGuru && matchJenjang;
+  });
+
   useEffect(() => {
     if (!form.teacherUserId && teacherUsers[0]?.id) {
       setForm((current) => ({ ...current, teacherUserId: teacherUsers[0].id }));
@@ -4305,14 +4364,37 @@ function AdminClassManager({
       </Card>
 
       <div className="mt-8">
-        <div className="professional-card__header mb-4">
+        <div className="professional-card__header mb-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <h3 className="professional-card__title">Semua kelas guru</h3>
-            <p className="professional-card__hint">{classes.length} kelas terdaftar.</p>
+            <p className="professional-card__hint">{filteredClasses.length} kelas sesuai kriteria.</p>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
+            <input 
+              type="text" 
+              placeholder="Cari nama guru..." 
+              value={searchGuru}
+              onChange={(e) => setSearchGuru(e.target.value)}
+              className="border border-slate-200 rounded-md px-3 py-1.5 text-sm w-full sm:w-48 bg-white focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400"
+            />
+            <Select 
+              value={searchJenjang} 
+              onChange={(e) => setSearchJenjang(e.target.value)}
+              className="w-full sm:w-40 border-slate-200 text-sm"
+              style={{ minHeight: "34px", padding: "4px 8px" }}
+            >
+              <option value="">Semua Jenjang</option>
+              {Array.from({ length: 12 }, (_, index) => String(index + 1)).map((grade) => (
+                <option key={grade} value={grade}>
+                  Kelas {grade}
+                </option>
+              ))}
+            </Select>
           </div>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {classes.map((kelas) => (
+          {filteredClasses.length ? null : <p className="text-slate-500 text-sm italic col-span-full">Tidak ada kelas yang ditemukan.</p>}
+          {filteredClasses.map((kelas) => (
             <AdminClassCard key={kelas.id} kelas={kelas} teachers={teacherUsers} busy={busy} onUpdate={onUpdate} onDelete={onDelete} />
           ))}
         </div>
