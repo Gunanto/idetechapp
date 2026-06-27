@@ -2257,8 +2257,8 @@ function TeacherSpaceDashboard({
       return;
     }
 
-    if (featureName.includes("progres") || featureName.includes("Radar")) {
-      onChangeMenu("rank");
+    if (featureName.includes("progres") || featureName.includes("Radar") || featureName.includes("Peringatan") || featureName.includes("Grading")) {
+      setActiveFeature("radar");
       return;
     }
 
@@ -2403,6 +2403,8 @@ function TeacherSpaceDashboard({
 
           {activeFeature === "jurnal" ? (
             <TeacherJournalView onClose={() => { setActiveFeature(null); onChangeMenu("map"); }} />
+          ) : activeFeature === "radar" ? (
+            <TeacherRadarView onClose={() => setActiveFeature(null)} />
           ) : activeMenu === "studio" ? (
             <TeacherStudioManager
               classes={teacherClasses}
@@ -2676,7 +2678,10 @@ function TeacherStudioManager({
 
   const sendBankRequest = async (type: "material" | "quest", id: string) => {
     const classId = requestTargetClass[id];
-    if (!classId) return alert("Pilih kelas tujuan terlebih dahulu.");
+    if (!classId) {
+      showToast("Pilih kelas tujuan terlebih dahulu.");
+      return;
+    }
     try {
       await api("/api/teacher/bank-requests", {
         method: "POST",
@@ -2684,7 +2689,7 @@ function TeacherStudioManager({
       });
       showToast("Permohonan berhasil dikirim ke pembuat.");
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Gagal memohon.");
+      showToast(err instanceof Error ? err.message : "Gagal memohon.");
     }
   };
 
@@ -2697,7 +2702,7 @@ function TeacherStudioManager({
       showToast(status === "approved" ? "Permohonan disetujui." : "Permohonan ditolak.");
       loadBankRequests();
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Gagal memproses permohonan.");
+      showToast(err instanceof Error ? err.message : "Gagal memproses permohonan.");
     }
   };
 
@@ -3014,7 +3019,7 @@ function TeacherStudioManager({
                     await api("/api/teacher/bank-submit", { method: "POST", body: JSON.stringify({ type: "material", id: item.id }) });
                     showToast("Materi ini akan ditinjau oleh tim IdeTech sebelum masuk ke Bank Materi.");
                   } catch (err) {
-                    alert(err instanceof Error ? err.message : "Gagal mengirim ke bank.");
+                    showToast(err instanceof Error ? err.message : "Gagal mengirim ke bank.");
                   }
                 }} className="p-1.5 text-slate-400 hover:text-green-600 hover:bg-green-50 rounded-md transition-colors" title="Kirim ke Bank Materi">
                   <Upload className="h-4 w-4" />
@@ -3042,7 +3047,7 @@ function TeacherStudioManager({
                     await api("/api/teacher/bank-submit", { method: "POST", body: JSON.stringify({ type: "quest", id: item.id }) });
                     showToast("IdeQuest ini akan ditinjau oleh tim IdeTech sebelum masuk ke Bank IdeQuest.");
                   } catch (err) {
-                    alert(err instanceof Error ? err.message : "Gagal mengirim ke bank.");
+                    showToast(err instanceof Error ? err.message : "Gagal mengirim ke bank.");
                   }
                 }} className="p-1.5 text-slate-400 hover:text-green-600 hover:bg-green-50 rounded-md transition-colors" title="Kirim ke Bank IdeQuest">
                   <Upload className="h-4 w-4" />
@@ -3146,7 +3151,7 @@ function TeacherStudioManager({
                       </div>
                       <div className="flex flex-col gap-2 min-w-[160px]">
                         <select 
-                          className="text-xs border border-slate-200 rounded p-1.5 w-full bg-slate-50 focus:border-blue-400 focus:outline-none"
+                          className="text-xs font-medium text-slate-700 border border-slate-300 rounded p-1.5 w-full bg-white shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
                           value={requestTargetClass[item.id] || ""}
                           onChange={(e) => setRequestTargetClass(prev => ({...prev, [item.id]: e.target.value}))}
                         >
@@ -3171,7 +3176,7 @@ function TeacherStudioManager({
                       </div>
                       <div className="flex flex-col gap-2 min-w-[160px]">
                         <select 
-                          className="text-xs border border-slate-200 rounded p-1.5 w-full bg-slate-50 focus:border-blue-400 focus:outline-none"
+                          className="text-xs font-medium text-slate-700 border border-slate-300 rounded p-1.5 w-full bg-white shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
                           value={requestTargetClass[item.id] || ""}
                           onChange={(e) => setRequestTargetClass(prev => ({...prev, [item.id]: e.target.value}))}
                         >
@@ -5308,7 +5313,7 @@ function AdminBankApprovalPanel() {
       showToast(`Berhasil diproses (${status === "approved" ? "Disetujui" : "Ditolak"})`);
       loadQueue();
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Gagal memproses.");
+      showToast(err instanceof Error ? err.message : "Gagal memproses.");
     }
   };
 
@@ -5405,6 +5410,34 @@ function AdminBankApprovalPanel() {
         </div>
       )}
     </Card>
+  );
+}
+
+function TeacherRadarView({ onClose }: { onClose: () => void }) {
+  return (
+    <div className="bg-white rounded-t-3xl min-h-[60vh] p-6 shadow-[0_-10px_40px_rgba(0,0,0,0.1)] relative mt-4 animate-in slide-in-from-bottom-10">
+      <div className="absolute top-3 left-1/2 -translate-x-1/2 w-12 h-1.5 bg-slate-200 rounded-full" />
+      
+      <div className="flex justify-between items-center mt-4 mb-6">
+        <div>
+          <h2 className="text-xl font-bold text-slate-800">Radar Pintar</h2>
+          <p className="text-sm text-slate-500">Analisis progres dan insight belajar siswa</p>
+        </div>
+        <button type="button" onClick={onClose} className="p-2 bg-slate-100 text-slate-600 rounded-full hover:bg-slate-200">
+          <X className="h-5 w-5" />
+        </button>
+      </div>
+
+      <div className="flex flex-col items-center justify-center py-12 text-center border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50">
+        <div className="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mb-4 shadow-inner">
+          <Target className="h-8 w-8" />
+        </div>
+        <h3 className="text-lg font-bold text-slate-800 mb-2">Segera Hadir</h3>
+        <p className="text-sm text-slate-500 max-w-sm px-4">
+          Fitur analitik Radar Pintar untuk memantau performa siswa secara *real-time* sedang dalam tahap pengembangan akhir.
+        </p>
+      </div>
+    </div>
   );
 }
 
