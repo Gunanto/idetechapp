@@ -162,7 +162,7 @@ type TeacherMaterial = {
   type: "lesson" | "video" | "document" | "quiz";
   description: string;
   content?: string;
-  options?: unknown;
+  options?: { dueDate?: string; [key: string]: any } | null;
   status: "draft" | "published";
 };
 
@@ -947,6 +947,7 @@ function StudentCompactDashboard({
   const [openPanel, setOpenPanel] = useState<MobileNavId | null>(null);
   const content = roleMenuContent.student[openPanel && openPanel !== "profile" ? openPanel : activeMenu];
   const [indicators, setIndicators] = useState<StudentIndicatorResponse | null>(null);
+  const [activeOrb, setActiveOrb] = useState<StudentIndicator | null>(null);
   const [studentMaterials, setStudentMaterials] = useState<StudentMaterial[]>([]);
   const [studentQuests, setStudentQuests] = useState<StudentQuest[]>([]);
   const [studentAchievements, setStudentAchievements] = useState<StudentAchievement[]>([]);
@@ -1127,7 +1128,7 @@ function StudentCompactDashboard({
 
           <div className="student-compact-side is-left">
             {leftItems.map((item) => (
-              <StudentMapIcon key={item.id} item={{ ...item, icon: studentMapIcon(item.id) }} />
+              <StudentMapIcon key={item.id} item={{ ...item, icon: studentMapIcon(item.id) }} onClick={() => setActiveOrb(item)} />
             ))}
           </div>
 
@@ -1147,7 +1148,7 @@ function StudentCompactDashboard({
 
           <div className="student-compact-side is-right">
             {rightItems.map((item) => (
-              <StudentMapIcon key={item.id} item={{ ...item, icon: studentMapIcon(item.id) }} />
+              <StudentMapIcon key={item.id} item={{ ...item, icon: studentMapIcon(item.id) }} onClick={() => setActiveOrb(item)} />
             ))}
           </div>
 
@@ -1184,6 +1185,47 @@ function StudentCompactDashboard({
       ) : null}
 
       <MobileGameNav active={openPanel ?? activeMenu} role="student" notifications={indicators?.nav} onChange={handleChangeMenu} />
+      
+      {activeOrb && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setActiveOrb(null)} />
+          <div className="relative bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl animate-in zoom-in-95 duration-200">
+            <button onClick={() => setActiveOrb(null)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-full p-1.5 transition-colors">
+              <X className="w-5 h-5" />
+            </button>
+            <div className="flex items-center gap-4 mb-4">
+              <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 shadow-inner">
+                {(() => {
+                  const OrbIcon = studentMapIcon(activeOrb.id);
+                  return <OrbIcon className="w-6 h-6" strokeWidth={2.5} />;
+                })()}
+              </div>
+              <div>
+                <h3 className="font-bold text-lg text-slate-800">{activeOrb.title}</h3>
+                <p className="text-sm font-semibold text-blue-600">{activeOrb.subtitle}</p>
+              </div>
+            </div>
+            
+            <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 text-sm text-slate-600 leading-relaxed">
+              {activeOrb.id === "map" && "Jalur utama petualangan IdeQuest. Terus selesaikan materi dan kuis untuk membuka peta wilayah baru!"}
+              {activeOrb.id === "quest" && "Daftar misi khusus berbatas waktu. Kerjakan secepatnya sebelum waktunya habis untuk mendapat koin ekstra."}
+              {activeOrb.id === "rank" && "Peringkat dan pencapaianmu. Kumpulkan piala untuk menaikkan reputasimu di kelas!"}
+              {activeOrb.id === "tasks" && "Materi atau tugas aktif dari guru yang menunggumu. Jangan ditunda-tunda ya!"}
+              {activeOrb.id === "coins" && "Poin/koin yang sudah kamu kumpulkan dari penyelesaian misi. Bisa ditukarkan dengan hadiah menarik."}
+              {activeOrb.id === "radar" && "Radar Pintar yang memantau performa belajarmu. Jika menyala merah, berarti ada peringatan penting dari guru!"}
+            </div>
+            
+            {activeOrb.badge && (
+              <div className="mt-4 flex items-center justify-center gap-2 bg-yellow-50 text-yellow-800 py-2 px-3 rounded-lg text-sm font-bold border border-yellow-200">
+                <Star className="w-4 h-4 text-yellow-500 fill-current" />
+                Badge aktif: {activeOrb.badge}
+              </div>
+            )}
+            
+            <button onClick={() => setActiveOrb(null)} className="mt-5 w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition-colors shadow-md shadow-blue-500/25">Tutup Info</button>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
@@ -1272,9 +1314,11 @@ function StudentDesktopQuickAccess({
 }
 
 function StudentMapIcon({
-  item
+  item,
+  onClick
 }: {
   item: StudentIndicator & { icon: typeof Sparkles };
+  onClick?: () => void;
 }) {
   const Icon = item.icon;
 
@@ -1283,6 +1327,7 @@ function StudentMapIcon({
       className={item.connected ? "student-map-icon" : "student-map-icon is-disconnected"}
       type="button"
       aria-label={item.title}
+      onClick={onClick}
     >
       <span className="student-map-icon__orb">
         <Icon className="student-map-icon__glyph" strokeWidth={2.8} />
@@ -2248,7 +2293,8 @@ function TeacherSpaceDashboard({
     title: "",
     type: "lesson" as TeacherMaterial["type"],
     description: "",
-    content: ""
+    content: "",
+    dueDate: ""
   });
   const [questForm, setQuestForm] = useState({
     classId: "",
@@ -2337,18 +2383,26 @@ function TeacherSpaceDashboard({
 
     try {
       if (editingMaterialId) {
+        const payload = {
+          ...materialForm,
+          options: materialForm.dueDate ? { dueDate: materialForm.dueDate } : null
+        };
         await api<{ material: TeacherMaterial }>(`/api/teacher/materials/${editingMaterialId}`, {
           method: "PATCH",
-          body: JSON.stringify(materialForm)
+          body: JSON.stringify(payload)
         });
         setEditingMaterialId(null);
       } else {
+        const payload = {
+          ...materialForm,
+          options: materialForm.dueDate ? { dueDate: materialForm.dueDate } : null
+        };
         await api<{ material: TeacherMaterial }>("/api/teacher/materials", {
           method: "POST",
-          body: JSON.stringify(materialForm)
+          body: JSON.stringify(payload)
         });
       }
-      setMaterialForm((current) => ({ ...current, title: "", description: "" }));
+      setMaterialForm((current) => ({ ...current, title: "", description: "", dueDate: "" }));
       await loadTeacherStudio();
     } catch (err) {
       setStudioError(err instanceof Error ? err.message : "Gagal menyimpan materi.");
@@ -2397,13 +2451,16 @@ function TeacherSpaceDashboard({
       title: material.title,
       type: material.type,
       description: material.description,
-      content: material.content ?? ""
+      content: material.content || "",
+      dueDate: material.options?.dueDate || ""
     });
   }
 
   function cancelEditMaterial() {
     setEditingMaterialId(null);
-    setMaterialForm({ classId: "", title: "", type: "lesson", description: "", content: "" });
+    setEditingQuestId(null);
+    setMaterialForm({ classId: "", title: "", type: "lesson", description: "", content: "", dueDate: "" });
+    setQuestForm({ classId: "", materialId: "", title: "", mission: "", points: "100", dueDate: "" });
   }
 
   function startEditQuest(quest: TeacherIdeQuest) {
@@ -2769,13 +2826,13 @@ function TeacherStudioManager({
   classes: TeacherClass[];
   materials: TeacherMaterial[];
   quests: TeacherIdeQuest[];
-  materialForm: { classId: string; title: string; type: TeacherMaterial["type"]; description: string; content: string };
+  materialForm: { classId: string; title: string; type: TeacherMaterial["type"]; description: string; content: string; dueDate: string };
   questForm: { classId: string; materialId: string; title: string; mission: string; points: string; dueDate: string };
   busy: boolean;
   error: string | null;
   editingMaterialId?: string | null;
   editingQuestId?: string | null;
-  onMaterialFormChange: React.Dispatch<React.SetStateAction<{ classId: string; title: string; type: TeacherMaterial["type"]; description: string; content: string }>>;
+  onMaterialFormChange: React.Dispatch<React.SetStateAction<{ classId: string; title: string; type: TeacherMaterial["type"]; description: string; content: string; dueDate: string }>>;
   onQuestFormChange: React.Dispatch<React.SetStateAction<{ classId: string; materialId: string; title: string; mission: string; points: string; dueDate: string }>>;
   onCreateMaterial: (event: React.FormEvent<HTMLFormElement>) => void;
   onCreateQuest: (event: React.FormEvent<HTMLFormElement>) => void;
@@ -3107,6 +3164,15 @@ function TeacherStudioManager({
             </button>
           </div>
         )}
+
+        <label>
+          <span>Batas Waktu (Opsional)</span>
+          <input
+            type="datetime-local"
+            value={materialForm.dueDate}
+            onChange={(event) => onMaterialFormChange((current) => ({ ...current, dueDate: event.target.value }))}
+          />
+        </label>
 
         {error && activeTab === "material" ? <p className="teacher-class-error mb-4">{error}</p> : null}
         <div className="flex gap-2">
@@ -3881,6 +3947,7 @@ function LoginScreen({
           </div>
         </section>
       </div>
+
     </main>
   );
 }

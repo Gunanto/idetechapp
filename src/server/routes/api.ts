@@ -1214,26 +1214,58 @@ app.get("/student/indicators", requireRole(["student"]), async (c) => {
   const chapterProgressLabel = totalUnits > 0 ? `${completedUnits}/${totalUnits}` : "0/0";
   const progressPercent = totalUnits > 0 ? Math.round((completedUnits / totalUnits) * 100) : 0;
 
+  const formatTimeLeft = (dateString?: string | null) => {
+    if (!dateString) return "Bebas";
+    const due = new Date(dateString);
+    if (isNaN(due.getTime())) return dateString; 
+    
+    const diff = due.getTime() - Date.now();
+    if (diff <= 0) return "Berakhir";
+    
+    const d = Math.floor(diff / (1000 * 60 * 60 * 24));
+    const h = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    
+    if (d > 0) return `${d}h ${h}j`;
+    if (h > 0) return `${h}j ${m}m`;
+    return `${m}m`;
+  };
+
+  const nextMaterialDueDate = visibleMaterials
+    .map((m) => (m.options as any)?.dueDate as string | undefined)
+    .filter(Boolean)
+    .sort((a, b) => new Date(a!).getTime() - new Date(b!).getTime())[0];
+    
+  const nextQuestDueDate = dbQuests
+    .map((q) => q.dueDate)
+    .filter(Boolean)
+    .sort((a, b) => {
+      const ta = new Date(a).getTime();
+      const tb = new Date(b).getTime();
+      if (isNaN(ta) || isNaN(tb)) return 0;
+      return ta - tb;
+    })[0];
+
   return c.json({
     left: [
       {
         id: "map",
         title: "Map",
-        subtitle: "9h 37m",
+        subtitle: formatTimeLeft(nextMaterialDueDate),
         badge: dueSoonCount > 0 ? `+${dueSoonCount}` : undefined,
         connected: pendingCount > 0
       },
       {
         id: "quest",
         title: "Quest",
-        subtitle: "2d 9h",
+        subtitle: formatTimeLeft(nextQuestDueDate),
         badge: pendingCount > 0 ? String(pendingCount) : undefined,
         connected: pendingCount > 0
       },
       {
         id: "rank",
         title: "Piala",
-        subtitle: "1d 9h",
+        subtitle: "Season 1",
         badge: earnedBadges > 0 ? String(earnedBadges * 10) : undefined,
         connected: earnedBadges > 0
       }
@@ -1242,7 +1274,7 @@ app.get("/student/indicators", requireRole(["student"]), async (c) => {
       {
         id: "tasks",
         title: "Tugas aktif",
-        subtitle: "10d 9h",
+        subtitle: formatTimeLeft(nextMaterialDueDate || nextQuestDueDate),
         badge: dueSoonCount > 0 ? String(dueSoonCount) : undefined,
         connected: dueSoonCount > 0
       },
