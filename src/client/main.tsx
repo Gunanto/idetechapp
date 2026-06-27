@@ -2042,11 +2042,11 @@ function TeacherSpaceDashboard({
   onSwitchRole: (role: RoleName) => void;
 }) {
   const content = roleMenuContent.teacher[activeMenu];
+  const [guideModal, setGuideModal] = useState<MobileNavId | null>(null);
   const [teacherClasses, setTeacherClasses] = useState<TeacherClass[]>([]);
   const [classSummary, setClassSummary] = useState<TeacherClassSummary | null>(null);
   const [activeClassFilter, setActiveClassFilter] = useState<string>("all");
   const [activeFeature, setActiveFeature] = useState<string | null>(null);
-  const [isChatOpen, setIsChatOpen] = useState(false);
   const [classForm, setClassForm] = useState({
     name: "",
     subject: "",
@@ -2309,7 +2309,7 @@ function TeacherSpaceDashboard({
                   <BadgeCheck className="h-8 w-8 text-blue-500" />
                 </div>
               ) : (
-                <button type="button" onClick={() => onChangeMenu(activeMenu === "map" ? "profile" : activeMenu)}>
+                <button type="button" onClick={() => activeMenu === "map" ? onChangeMenu("profile") : setGuideModal(activeMenu)}>
                   {activeMenu === "map" ? "Profil" : "More"}
                 </button>
               )}
@@ -2500,18 +2500,65 @@ function TeacherSpaceDashboard({
         </article>
       </section>
 
-      <TeacherChatWidget isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />
-      
-      {!isChatOpen && (
-        <button 
-          onClick={() => setIsChatOpen(true)}
-          className="fixed bottom-24 right-6 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-blue-600 text-white shadow-lg hover:bg-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-500/50 md:bottom-8 md:right-8 transition-transform hover:scale-105"
-        >
-          <MessageCircle className="h-6 w-6" />
-        </button>
-      )}
-
       <TeacherBottomNav active={activeMenu} onChange={onChangeMenu} />
+
+      {guideModal ? (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl relative">
+            <button className="absolute top-4 right-4 text-slate-400 hover:text-slate-600" onClick={() => setGuideModal(null)}>
+              <X className="h-6 w-6" />
+            </button>
+            <h3 className="text-xl font-bold mb-4 text-slate-800">
+              {guideModal === "quest" ? "Panduan Kelas Saya" :
+               guideModal === "studio" ? "Panduan IdeStudio Guru" :
+               "Panduan Radar Pintar"}
+            </h3>
+            <div className="prose prose-sm text-slate-600 overflow-y-auto max-h-[60vh] pr-2">
+              {guideModal === "quest" && (
+                <ReactMarkdown rehypePlugins={[rehypeRaw]}>
+                  {`
+**Membuat Kelas:**
+1. Masukkan nama kelas, mata pelajaran, dan jenjang.
+2. Klik 'Tambah Kelas'.
+3. Bagikan ClassID ke siswa untuk bergabung.
+
+**Mengelola Kelas:**
+- Pantau jumlah siswa yang telah bergabung.
+- Lihat persentase progres penyelesaian materi kelas secara keseluruhan.
+- Kamu dapat melihat laporan rinci melalui fitur Radar Pintar.
+                  `}
+                </ReactMarkdown>
+              )}
+              {guideModal === "studio" && (
+                <ReactMarkdown rehypePlugins={[rehypeRaw]}>
+                  {`
+**Membuat Materi:**
+1. Pilih tab 'Materi' dan buat materi baru.
+2. Materi bisa berupa teks kaya (Rich Text), tautan video, atau dokumen PDF.
+3. Simpan materi untuk diakses siswa.
+
+**IdeQuest (Misi & Kuis):**
+1. Setiap IdeQuest sebaiknya ditautkan ke materi tertentu agar siswa membaca materi terlebih dahulu.
+2. Berikan misi spesifik atau soal pilihan.
+3. Atur *points* (XP) sebagai reward untuk gamifikasi.
+                  `}
+                </ReactMarkdown>
+              )}
+              {guideModal === "rank" && (
+                <ReactMarkdown rehypePlugins={[rehypeRaw]}>
+                  {`
+**Radar Pintar:**
+Fitur ini menganalisis semua aktivitas siswa di kelas Anda:
+- **Peringatan Dini:** Deteksi otomatis siswa yang kesulitan pada materi atau IdeQuest tertentu.
+- **Intervensi:** Panduan untuk menindaklanjuti progres siswa yang lambat.
+- **Performa Relatif:** Bandingkan rata-rata kelas dengan aktivitas individu.
+                  `}
+                </ReactMarkdown>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
     </main>
   );
 }
