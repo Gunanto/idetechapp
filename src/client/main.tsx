@@ -3597,7 +3597,7 @@ function TeacherStudioManager({
           {showAdvancedMaterial && (
             <div className="flex flex-col gap-3 mt-3 p-4 bg-slate-50 border border-slate-200 rounded-lg animate-in fade-in slide-in-from-top-2 duration-200">
               <label className="!mb-0">
-                <span className="flex items-center gap-1.5 text-slate-700">Deskripsi Singkat <HelpCircle className="w-3.5 h-3.5 text-slate-400" title="Ringkasan yang muncul di bawah judul materi" /></span>
+                <span className="flex items-center gap-1.5 text-slate-700" title="Ringkasan yang muncul di bawah judul materi">Deskripsi Singkat <HelpCircle className="w-3.5 h-3.5 text-slate-400" /></span>
                 <textarea
                   value={materialForm.description}
                   placeholder="Ringkasan materi untuk siswa..."
@@ -3606,7 +3606,7 @@ function TeacherStudioManager({
                 />
               </label>
               <label className="!mb-0">
-                <span className="flex items-center gap-1.5 text-slate-700">Batas Waktu (Opsional) <HelpCircle className="w-3.5 h-3.5 text-slate-400" title="Batas akhir pengerjaan khusus tipe Kuis atau Tugas" /></span>
+                <span className="flex items-center gap-1.5 text-slate-700" title="Batas akhir pengerjaan khusus tipe Kuis atau Tugas">Batas Waktu (Opsional) <HelpCircle className="w-3.5 h-3.5 text-slate-400" /></span>
                 <input
                   type="datetime-local"
                   value={materialForm.dueDate}
@@ -3688,7 +3688,7 @@ function TeacherStudioManager({
           {showAdvancedQuest && (
             <div className="flex flex-col gap-3 mt-3 p-4 bg-slate-50 border border-slate-200 rounded-lg animate-in fade-in slide-in-from-top-2 duration-200">
               <label className="!mb-0">
-                <span className="flex items-center gap-1.5 text-slate-700">Materi Terkait <HelpCircle className="w-3.5 h-3.5 text-slate-400" title="Hubungkan quest ini dengan materi tertentu agar siswa membaca materi sebelum mengerjakan" /></span>
+                <span className="flex items-center gap-1.5 text-slate-700" title="Hubungkan quest ini dengan materi tertentu agar siswa membaca materi sebelum mengerjakan">Materi Terkait <HelpCircle className="w-3.5 h-3.5 text-slate-400" /></span>
                 <select
                   value={questForm.materialId}
                   onChange={(event) => onQuestFormChange((current) => ({ ...current, materialId: event.target.value }))}
@@ -3902,8 +3902,9 @@ function TeacherStudioManager({
                       </div>
                     </article>
                   ))}
-                  {((searchFilter === "all" || searchFilter === "material") && materials.filter(m => m.title.toLowerCase().includes(searchQuery.toLowerCase()) || m.type.toLowerCase().includes(searchQuery.toLowerCase())).length === 0) &&
-                   ((searchFilter === "all" || searchFilter === "quest") && quests.filter(q => q.title.toLowerCase().includes(searchQuery.toLowerCase())).length === 0) && (
+                  {((searchFilter === "all" && materials.filter(m => m.title.toLowerCase().includes(searchQuery.toLowerCase()) || m.type.toLowerCase().includes(searchQuery.toLowerCase())).length === 0 && quests.filter(q => q.title.toLowerCase().includes(searchQuery.toLowerCase())).length === 0) ||
+                    (searchFilter === "material" && materials.filter(m => m.title.toLowerCase().includes(searchQuery.toLowerCase()) || m.type.toLowerCase().includes(searchQuery.toLowerCase())).length === 0) ||
+                    (searchFilter === "quest" && quests.filter(q => q.title.toLowerCase().includes(searchQuery.toLowerCase())).length === 0)) && (
                      <div className="text-center py-8 text-slate-500">
                        <p>Tidak ada hasil yang cocok dengan pencarian Anda.</p>
                      </div>
