@@ -13,7 +13,7 @@ Dokumen ini mencatat status implementasi backend API IdeTech berdasarkan `implem
 | Build | ✅ Sukses |
 | Test otomatis | ✅ 64 pass, 0 fail |
 | Container Docker | ✅ Healthy |
-| Commit terakhir | `1e89d9b` — feat: enforce permissions and real parent reports + docs |
+| Commit terakhir | `9a8ed8b` — test: add parent reports with real student progress and teacher note |
 
 ---
 
