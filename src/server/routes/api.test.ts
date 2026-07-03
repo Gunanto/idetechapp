@@ -1,4 +1,4 @@
-import { describe, expect, test, beforeAll, beforeEach, afterEach } from "bun:test";
+import { describe, expect, test, beforeAll, beforeEach, afterEach, spyOn } from "bun:test";
 import { eq, inArray } from "drizzle-orm";
 import app from "./api";
 import { db } from "../db/client";
@@ -7,6 +7,7 @@ import type { RoleName } from "../db/schema";
 import { nanoid } from "nanoid";
 import { sessionCookieName, createSession } from "../lib/auth";
 import { initializeDatabase } from "../db/init";
+import { S3Client } from "@aws-sdk/client-s3";
 import { permissionCatalog, roleCatalog, rolePermissions as catalogRolePermissions } from "../lib/catalog";
 
 function clearS3Env() {
@@ -1450,6 +1451,118 @@ describe("Backend API Endpoints", () => {
           const res = await requestWithToken(teacherToken, "/teacher/bank-submit", "POST", {
             type: "material",
             id: "mat_test"
+          });
+          expect(res.status).toBe(403);
+        });
+      });
+
+      describe("Teacher journal photo upload to S3", () => {
+        function setS3Env() {
+          process.env.RUSTFS_ENDPOINT = "http://localhost:9000";
+          process.env.RUSTFS_ACCESS_KEY = "test-access-key";
+          process.env.RUSTFS_SECRET_KEY = "test-secret-key";
+          process.env.RUSTFS_PUBLIC_BASE_URL = "http://localhost:9000/idetech-assets";
+          process.env.RUSTFS_BUCKET = "idetech-assets";
+        }
+
+        function restoreS3Env(original: Record<string, string | undefined>) {
+          for (const key of [
+            "RUSTFS_ENDPOINT",
+            "RUSTFS_ACCESS_KEY",
+            "RUSTFS_SECRET_KEY",
+            "RUSTFS_PUBLIC_BASE_URL",
+            "RUSTFS_BUCKET"
+          ]) {
+            if (original[key] === undefined) {
+              delete process.env[key];
+            } else {
+              process.env[key] = original[key];
+            }
+          }
+        }
+
+        test("Teacher dapat upload foto jurnal ke S3 dan mendapat photoUrl", async () => {
+          const { token: teacherToken } = await createUserWithPermissions("teacher", ["journal.manage"]);
+          const originalEnv: Record<string, string | undefined> = {};
+          for (const key of [
+            "RUSTFS_ENDPOINT",
+            "RUSTFS_ACCESS_KEY",
+            "RUSTFS_SECRET_KEY",
+            "RUSTFS_PUBLIC_BASE_URL",
+            "RUSTFS_BUCKET"
+          ]) {
+            originalEnv[key] = process.env[key];
+          }
+          setS3Env();
+
+          const sendSpy = spyOn(S3Client.prototype, "send").mockResolvedValue({ ETag: "mock-etag" } as never);
+
+          try {
+            const formData = new FormData();
+            formData.append("mood", "happy");
+            formData.append("photo", new File(["fake-image-data"], "photo.png", { type: "image/png" }));
+
+            const req = new Request("http://localhost/teacher/journals", {
+              method: "POST",
+              headers: {
+                cookie: `${sessionCookieName}=${teacherToken}`
+              },
+              body: formData
+            });
+
+            const res = await app.request(req);
+            expect(res.status).toBe(200);
+            const json = await res.json();
+            expect(json.ok).toBe(true);
+            expect(json.photoUrl).toContain(process.env.RUSTFS_PUBLIC_BASE_URL);
+            expect(json.photoUrl).toContain("journals/");
+            expect(sendSpy).toHaveBeenCalledTimes(1);
+          } finally {
+            sendSpy.mockRestore();
+            restoreS3Env(originalEnv);
+          }
+        });
+
+        test("Konfigurasi S3 tidak lengkap mengembalikan 500", async () => {
+          const { token: teacherToken } = await createUserWithPermissions("teacher", ["journal.manage"]);
+          const originalEnv: Record<string, string | undefined> = {};
+          for (const key of [
+            "RUSTFS_ENDPOINT",
+            "RUSTFS_ACCESS_KEY",
+            "RUSTFS_SECRET_KEY",
+            "RUSTFS_PUBLIC_BASE_URL",
+            "RUSTFS_BUCKET"
+          ]) {
+            originalEnv[key] = process.env[key];
+            delete process.env[key];
+          }
+
+          try {
+            const formData = new FormData();
+            formData.append("photo", new File(["fake-image-data"], "photo.png", { type: "image/png" }));
+
+            const req = new Request("http://localhost/teacher/journals", {
+              method: "POST",
+              headers: {
+                cookie: `${sessionCookieName}=${teacherToken}`
+              },
+              body: formData
+            });
+
+            const res = await app.request(req);
+            expect(res.status).toBe(500);
+            const json = await res.json();
+            expect(json.message).toBe("Konfigurasi storage belum lengkap.");
+          } finally {
+            restoreS3Env(originalEnv);
+          }
+        });
+
+        test("Teacher tanpa journal.manage ditolak upload foto", async () => {
+          const { token: teacherToken } = await createUserWithPermissions("teacher", []);
+          const res = await app.request("/teacher/journals", {
+            method: "POST",
+            headers: { cookie: `${sessionCookieName}=${teacherToken}` }
           });
           expect(res.status).toBe(403);
         });
