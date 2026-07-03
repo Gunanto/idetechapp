@@ -133,6 +133,7 @@ Dokumen ini mencatat status implementasi backend API IdeTech berdasarkan `implem
 4. **Demo login** dinonaktifkan di production kecuali `DEMO_LOGIN_ENABLED=true`.
 5. **Retry connection MariaDB** ditambahkan saat startup dengan exponential backoff.
 6. **Seed script** sekarang mengisi `master_subjects`, `master_grades`, dan default `google.role_rule`.
+7. **GitHub Actions CI** (`.github/workflows/test.yml`) menjalankan `bun test` dan `bun run build` dengan service MariaDB di setiap push/PR ke `main`.
 
 ### Yang Perlu Diperhatikan
 - `cookies.txt` ditambahkan ke `.gitignore` (file sementara saat testing).
