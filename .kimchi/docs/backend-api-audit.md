@@ -2,6 +2,8 @@
 
 Dokumen ini memetakan seluruh endpoint backend yang dibutuhkan aplikasi IdeTech, model autentikasi/otorisasi, dependensi eksternal, dan skema database.
 
+> **Status implementasi:** Semua endpoint yang tercatat di dokumen ini sudah dibuat. Dokumen ini diperbarui terakhir pada **3 Juli 2026** untuk mencerminkan kondisi kode saat ini.
+
 ---
 
 ## 1. Ringkasan Arsitektur Backend
@@ -64,6 +66,8 @@ Semua API backend diprefix dengan `/api`. Frontend (React + Vite) di mode dev me
 ---
 
 ## 3. Inventori Endpoint Backend
+
+Semua endpoint di bawah ini sudah tersedia di `src/server/routes/api.ts` dan `src/server/routes/auth.ts`.
 
 ### 3.1 Health & Metadata
 
@@ -204,35 +208,44 @@ Semua API backend diprefix dengan `/api`. Frontend (React + Vite) di mode dev me
 
 ## 6. Catatan Keamanan & Observasi
 
-1. **Authorization pada beberapa endpoint kurang ketat**
-   - `/api/teacher/journals`, `/api/teacher/chat-quota`, `/api/teacher/chat-consume`, `/api/teacher/chat`, `/api/teacher/bank-*`, `/api/admin/announcements`, `/api/admin/master-data`, `/api/admin/bank-queue`, `/api/admin/activity-logs` tidak memeriksa `requirePermission(...)` meski permission relevan tersedia di catalog.
+1. **Authorization sudah diperketat di sebagian besar endpoint**
+   - Endpoint yang sebelumnya hanya `requireRole` kini juga memeriksa `requirePermission` sesuai catalog:
+     - `/api/teacher/journals` → `journal.manage`
+     - `/api/teacher/chat-quota`, `/api/teacher/chat-consume`, `/api/teacher/chat` → `chat.use`
+     - `/api/teacher/bank-*` → `bank.manage`
+     - `/api/admin/bank-queue` → `bank.manage`
+     - `/api/admin/activity-logs` → `system.setting`
+     - `/api/admin/master-data` → `system.setting`
+     - `/api/admin/announcements` POST → `system.setting`
+   - `/api/admin/announcements` GET sengaja dibuka untuk semua role yang login.
 
 2. **Parent report sudah terhubung ke data riil**
-   - `/api/parent/reports` sekarang mengambil data dari tabel `parent_students`, menghitung progres dari `student_material_progress` dan `student_quest_progress`, serta menampilkan catatan guru terbaru.
+   - `/api/parent/reports` mengambil data dari tabel `parent_students`, menghitung progres dari `student_material_progress` dan `student_quest_progress`, serta menampilkan catatan guru terbaru dari `teacher_journals`.
 
 3. **Bank request approval meng-clone item**
-   - Saat approve, item di-clone ke kelas requester. Perlu memastikan hanya owner yang bisa approve (sudah dicek `ownerUserId === user.id`).
+   - Saat approve, item di-clone ke kelas requester. Hanya owner item yang bisa approve (`ownerUserId === user.id`).
 
-4. **Google OAuth role resolution hardcoded**
-   - Email `the.real.ferilee@gmail.com` otomatis jadi admin+teacher.
-   - Domain guru hardcoded (`@guru.smk.belajar.id`, dll.).
-   - Sisanya default `student`.
+4. **Google OAuth role resolution sudah dinamis**
+   - Pemetaan role sekarang dibaca dari `system_settings` (`google.role_rule`) dengan fallback default.
+   - Default: email admin tertentu → `admin+teacher`, domain guru → `teacher`, sisanya → `student`.
 
-5. **S3/RustFS credentials fallback ke default Minio**
-   - Jika env tidak diisi, fallback ke `minioadmin`/`minioadmin` dan `http://global-storage:9000`.
+5. **S3/RustFS fallback default sudah dihapus**
+   - Jika env S3/RustFS tidak lengkap, `getS3Config()` melempar error dan upload foto jurnal mengembalikan 500.
 
-6. **Demo login tanpa password**
-   - `/api/auth/dev/google` langsung login berdasarkan email tanpa verifikasi kredensial. Pastikan tidak aktif di production.
+6. **Demo login dikontrol via environment**
+   - `/api/auth/dev/google` hanya aktif di production jika `DEMO_LOGIN_ENABLED=true`.
 
 ---
 
 ## 7. Rekomendasi
 
-- **Tambahkan `requirePermission`** pada endpoint bank, journal, chat, dan admin yang masih hanya `requireRole`.
-- **Hubungkan parent report** ke data riil `parent_students` + progress siswa.
-- **Nonaktifkan `/api/auth/dev/google`** di production via env flag.
-- **Ganti fallback S3 credentials** dengan error 500 jika env tidak diisi.
-- **Tambahkan rate limiting** pada endpoint publik seperti `/api/schools/search` dan `/api/auth/google`.
+- ✅ **Tambahkan `requirePermission`** pada endpoint bank, journal, chat, dan admin yang masih hanya `requireRole`.
+- ✅ **Hubungkan parent report** ke data riil `parent_students` + progress siswa.
+- ✅ **Nonaktifkan `/api/auth/dev/google`** di production via env flag `DEMO_LOGIN_ENABLED`.
+- ✅ **Ganti fallback S3 credentials** dengan error 500 jika env tidak diisi.
+- ⏳ **Tambahkan rate limiting** pada endpoint publik seperti `/api/schools/search` dan `/api/auth/google`.
+- ⏳ **Tambahkan unit test otomatis** untuk endpoint yang belum tercakup (sebagian besar sudah ditambahkan; lihat `.kimchi/docs/progress-tracking.md`).
+- ⏳ **Pertimbangkan pagination** untuk endpoint daftar besar seperti `/api/admin/users`, `/api/admin/activity-logs`, dan `/api/teacher/student-progress`.
 
 ---
 
