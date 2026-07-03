@@ -1567,6 +1567,107 @@ describe("Backend API Endpoints", () => {
           expect(res.status).toBe(403);
         });
       });
+
+      describe("Parent reports dengan data riil", () => {
+        test("Parent melihat laporan anak yang terhubung termasuk progress dan catatan guru", async () => {
+          const { token: teacherToken } = await createUserWithPermissions("teacher", [
+            "class.manage",
+            "material.create",
+            "quest.manage",
+            "journal.manage",
+            "report.view"
+          ]);
+
+          const classRes = await requestWithToken(teacherToken, "/teacher/classes", "POST", {
+            name: "Kelas Anak",
+            subject: "Sains",
+            grade: "7"
+          });
+          const classJson = await classRes.json();
+          const classId = classJson.class.id;
+          const classCode = classJson.class.classCode;
+
+          const materialRes = await requestWithToken(teacherToken, "/teacher/materials", "POST", {
+            classId,
+            title: "Materi Anak",
+            type: "lesson",
+            description: "Deskripsi"
+          });
+          const materialId = (await materialRes.json()).material.id;
+
+          const questRes = await requestWithToken(teacherToken, "/teacher/idequests", "POST", {
+            classId,
+            title: "Quest Anak",
+            mission: "Misi",
+            points: 50,
+            dueDate: "3d",
+            status: "published"
+          });
+          const questId = (await questRes.json()).quest.id;
+
+          const { token: studentToken, userId: studentId } = await createUserWithPermissions("student", ["quest.play"]);
+
+          const joinRes = await requestWithToken(studentToken, "/student/classes/join", "POST", {
+            classCode
+          });
+          expect(joinRes.status).toBe(201);
+
+          await requestWithToken(studentToken, `/student/materials/${materialId}/complete`, "POST");
+          await requestWithToken(studentToken, `/student/quests/${questId}/complete`, "POST");
+
+          const journalForm = new FormData();
+          journalForm.append("mood", "happy");
+          journalForm.append("anecdote", "Anak ini berkembang pesat.");
+
+          const journalReq = new Request("http://localhost/teacher/journals", {
+            method: "POST",
+            headers: { cookie: `${sessionCookieName}=${teacherToken}` },
+            body: journalForm
+          });
+          const journalRes = await app.request(journalReq);
+          expect(journalRes.status).toBe(200);
+
+          const { token: parentToken, userId: parentId } = await createUserWithPermissions("parent", ["report.view"]);
+
+          const { token: adminToken } = await createUserWithPermissions("admin", ["system.setting"]);
+          const linkRes = await requestWithToken(adminToken, "/admin/parent-students", "POST", {
+            parentUserId: parentId,
+            studentUserId: studentId,
+            relationship: "Ayah"
+          });
+          expect(linkRes.status).toBe(201);
+
+          const reportsRes = await requestWithToken(parentToken, "/parent/reports", "GET");
+          expect(reportsRes.status).toBe(200);
+          const reports = await reportsRes.json();
+          expect(reports.children).toHaveLength(1);
+          expect(reports.children[0]).toMatchObject({
+            id: studentId,
+            progress: 100,
+            teacherNote: "Anak ini berkembang pesat."
+          });
+        });
+
+        test("Parent tanpa anak yang terhubung melihat daftar kosong", async () => {
+          const { token: parentToken } = await createUserWithPermissions("parent", ["report.view"]);
+          const res = await requestWithToken(parentToken, "/parent/reports", "GET");
+          expect(res.status).toBe(200);
+          const json = await res.json();
+          expect(json.children).toHaveLength(0);
+        });
+
+        test("Non-parent tidak bisa mengakses laporan", async () => {
+          const { token: studentToken } = await createUserWithPermissions("student", []);
+          const res = await requestWithToken(studentToken, "/parent/reports", "GET");
+          expect(res.status).toBe(403);
+        });
+
+        test("Parent tanpa report.view ditolak", async () => {
+          const { token: parentToken } = await createUserWithPermissions("parent", []);
+          const res = await requestWithToken(parentToken, "/parent/reports", "GET");
+          expect(res.status).toBe(403);
+        });
+      });
     });
   });
 });
