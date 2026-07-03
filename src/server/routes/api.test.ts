@@ -632,6 +632,185 @@ describe("Backend API Endpoints", () => {
         });
         expect(res.status).toBe(404);
       });
+
+      describe("Admin classes CRUD", () => {
+        test("Admin dapat membuat, membaca, mengubah, dan menghapus kelas", async () => {
+          const { token: adminToken } = await createUserWithPermissions("admin", ["class.manage"]);
+          const { userId: teacherId } = await createUserWithPermissions("teacher", ["class.manage"]);
+
+          const createRes = await requestWithToken(adminToken, "/admin/classes", "POST", {
+            teacherUserId: teacherId,
+            name: "Kelas Test",
+            subject: "Matematika",
+            grade: "8",
+            students: 30
+          });
+          expect(createRes.status).toBe(201);
+          const created = await createRes.json();
+          const classId = created.class.id;
+          expect(created.class).toHaveProperty("name", "Kelas Test");
+
+          const listRes = await requestWithToken(adminToken, "/admin/classes", "GET");
+          expect(listRes.status).toBe(200);
+          const list = await listRes.json();
+          expect(list.classes).toEqual(expect.arrayContaining([expect.objectContaining({ id: classId })]));
+
+          const updateRes = await requestWithToken(adminToken, `/admin/classes/${classId}`, "PATCH", {
+            name: "Kelas Test Updated",
+            students: 32
+          });
+          expect(updateRes.status).toBe(200);
+          const updated = await updateRes.json();
+          expect(updated.class).toHaveProperty("name", "Kelas Test Updated");
+          expect(updated.class).toHaveProperty("students", 32);
+
+          const deleteRes = await requestWithToken(adminToken, `/admin/classes/${classId}`, "DELETE");
+          expect(deleteRes.status).toBe(200);
+
+          const listAfterDeleteRes = await requestWithToken(adminToken, "/admin/classes", "GET");
+          const listAfterDelete = await listAfterDeleteRes.json();
+          expect(listAfterDelete.classes).not.toEqual(
+            expect.arrayContaining([expect.objectContaining({ id: classId })])
+          );
+        });
+
+        test("Teacher tanpa class.manage ditolak", async () => {
+          const { token: teacherToken } = await createUserWithPermissions("teacher", ["material.create"]);
+          const res = await requestWithToken(teacherToken, "/admin/classes", "GET");
+          expect(res.status).toBe(403);
+        });
+
+        test("Input wajib kelas ditolak", async () => {
+          const { token: adminToken } = await createUserWithPermissions("admin", ["class.manage"]);
+          const res = await requestWithToken(adminToken, "/admin/classes", "POST", {
+            name: "Kelas Tanpa Mapel"
+          });
+          expect(res.status).toBe(400);
+        });
+      });
+
+      describe("Teacher materials CRUD", () => {
+        test("Teacher dapat membuat, membaca, mengubah, dan menghapus materi", async () => {
+          const { token: teacherToken, userId: teacherId } = await createUserWithPermissions("teacher", [
+            "class.manage",
+            "material.create"
+          ]);
+
+          const classRes = await requestWithToken(teacherToken, "/teacher/classes", "POST", {
+            name: "Kelas Material",
+            subject: "Sains",
+            grade: "7"
+          });
+          expect(classRes.status).toBe(201);
+          const classJson = await classRes.json();
+          const classId = classJson.class.id;
+
+          const createRes = await requestWithToken(teacherToken, "/teacher/materials", "POST", {
+            classId,
+            title: "Materi Test",
+            type: "lesson",
+            description: "Deskripsi materi test"
+          });
+          expect(createRes.status).toBe(201);
+          const created = await createRes.json();
+          const materialId = created.material.id;
+
+          const listRes = await requestWithToken(teacherToken, "/teacher/materials", "GET");
+          expect(listRes.status).toBe(200);
+          const list = await listRes.json();
+          expect(list.materials).toEqual(expect.arrayContaining([expect.objectContaining({ id: materialId })]));
+
+          const updateRes = await requestWithToken(teacherToken, `/teacher/materials/${materialId}`, "PATCH", {
+            title: "Materi Test Updated",
+            status: "draft"
+          });
+          expect(updateRes.status).toBe(200);
+          const updated = await updateRes.json();
+          expect(updated.material).toHaveProperty("title", "Materi Test Updated");
+          expect(updated.material).toHaveProperty("status", "draft");
+
+          const deleteRes = await requestWithToken(teacherToken, `/teacher/materials/${materialId}`, "DELETE");
+          expect(deleteRes.status).toBe(200);
+        });
+
+        test("Teacher lain tidak bisa mengubah materi milik guru lain", async () => {
+          const { token: teacher1Token } = await createUserWithPermissions("teacher", ["class.manage", "material.create"]);
+
+          const classRes = await requestWithToken(teacher1Token, "/teacher/classes", "POST", {
+            name: "Kelas Private",
+            subject: "IPA",
+            grade: "9"
+          });
+          const classId = (await classRes.json()).class.id;
+
+          const materialRes = await requestWithToken(teacher1Token, "/teacher/materials", "POST", {
+            classId,
+            title: "Materi Private",
+            type: "lesson",
+            description: "Deskripsi"
+          });
+          const materialId = (await materialRes.json()).material.id;
+
+          // Buat teacher kedua setelah resource milik teacher1 sudah ada.
+          const { token: teacher2Token } = await createUserWithPermissions("teacher", ["material.create"]);
+
+          const res = await requestWithToken(teacher2Token, `/teacher/materials/${materialId}`, "PATCH", {
+            title: "Hacked"
+          });
+          expect(res.status).toBe(404);
+        });
+      });
+
+      describe("Teacher idequests CRUD", () => {
+        test("Teacher dapat membuat, membaca, mengubah, dan menghapus quest", async () => {
+          const { token: teacherToken } = await createUserWithPermissions("teacher", [
+            "class.manage",
+            "quest.manage"
+          ]);
+
+          const classRes = await requestWithToken(teacherToken, "/teacher/classes", "POST", {
+            name: "Kelas Quest",
+            subject: "Matematika",
+            grade: "8"
+          });
+          const classId = (await classRes.json()).class.id;
+
+          const createRes = await requestWithToken(teacherToken, "/teacher/idequests", "POST", {
+            classId,
+            title: "Quest Test",
+            mission: "Selesaikan misi ini",
+            points: 100,
+            dueDate: "3d",
+            status: "published"
+          });
+          expect(createRes.status).toBe(201);
+          const created = await createRes.json();
+          const questId = created.quest.id;
+
+          const listRes = await requestWithToken(teacherToken, "/teacher/idequests", "GET");
+          expect(listRes.status).toBe(200);
+          const list = await listRes.json();
+          expect(list.quests).toEqual(expect.arrayContaining([expect.objectContaining({ id: questId })]));
+
+          const updateRes = await requestWithToken(teacherToken, `/teacher/idequests/${questId}`, "PATCH", {
+            title: "Quest Test Updated",
+            points: 150
+          });
+          expect(updateRes.status).toBe(200);
+          const updated = await updateRes.json();
+          expect(updated.quest).toHaveProperty("title", "Quest Test Updated");
+          expect(updated.quest).toHaveProperty("points", 150);
+
+          const deleteRes = await requestWithToken(teacherToken, `/teacher/idequests/${questId}`, "DELETE");
+          expect(deleteRes.status).toBe(200);
+        });
+
+        test("Tanpa permission quest.manage ditolak", async () => {
+          const { token: teacherToken } = await createUserWithPermissions("teacher", ["class.manage"]);
+          const res = await requestWithToken(teacherToken, "/teacher/idequests", "GET");
+          expect(res.status).toBe(403);
+        });
+      });
     });
   });
 });

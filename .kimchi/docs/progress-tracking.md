@@ -11,7 +11,7 @@ Dokumen ini mencatat status implementasi backend API IdeTech berdasarkan `implem
 | Total endpoint backend | ~47 endpoint |
 | Database | MariaDB (migrasi dari SQLite selesai) |
 | Build | ✅ Sukses |
-| Test otomatis | ✅ 30 pass, 0 fail |
+| Test otomatis | ✅ 37 pass, 0 fail |
 | Container Docker | ✅ Healthy |
 | Commit terakhir | `1e89d9b` — feat: enforce permissions and real parent reports + docs |
 
@@ -116,10 +116,10 @@ Dokumen ini mencatat status implementasi backend API IdeTech berdasarkan `implem
 ### Test Otomatis
 - [ ] Test Google OAuth flow
 - [ ] Test upload foto jurnal ke S3
-- [ ] Test chat AI dengan quota
+- [x] Test chat AI dengan quota
 - [ ] Test bank submit → approve → clone
 - [ ] Test parent reports dengan data riil
-- [ ] Test admin CRUD classes/materials/quests
+- [x] Test admin CRUD classes/materials/quests
 - [ ] Test student join class & complete
 
 ---
